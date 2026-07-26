@@ -119,6 +119,12 @@ final class FolderCompareModel: ObservableObject {
     @Published private(set) var renameCounterparts: [String: String] = [:]
     @Published private(set) var pathRules: FolderPathRules = .all
 
+    var isPerformingFileOperation: Bool {
+        isApplyingSelection
+            || isApplyingVerifiedMoves
+            || isApplyingExplicitRename
+    }
+
     private var comparisonTask: Task<Void, Never>?
     private var renameDetectionTask: Task<Void, Never>?
     private var verifiedMoveTask: Task<Void, Never>?
@@ -195,9 +201,20 @@ final class FolderCompareModel: ObservableObject {
         panel.prompt = RiffaLocalization.string("Choose")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        setFolder(url, for: side)
+    }
+
+    func setFolder(_ url: URL, for side: Side) {
+        guard !isPerformingFileOperation else {
+            errorMessage = RiffaLocalization.string(
+                "Wait for the current file operation to finish before replacing an input."
+            )
+            return
+        }
+        let standardizedURL = url.standardizedFileURL
         switch side {
-        case .left: leftURL = url
-        case .right: rightURL = url
+        case .left: leftURL = standardizedURL
+        case .right: rightURL = standardizedURL
         }
         compareIfReady()
     }
@@ -2045,6 +2062,20 @@ struct FolderCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Folder Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .right)
+            }
+        ])
         .alert(
             "Folder comparison issue",
             isPresented: Binding(
@@ -2317,6 +2348,12 @@ struct FolderCompareView: View {
             ) {
                 model.chooseFolder(for: .left)
             }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .left)
+            }
 
             Button {
                 model.swapSides()
@@ -2335,8 +2372,14 @@ struct FolderCompareView: View {
             ) {
                 model.chooseFolder(for: .right)
             }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .right)
+            }
         }
-        .disabled(model.isApplyingSelection)
+        .disabled(model.isPerformingFileOperation)
     }
 
     private var resultsTable: some View {

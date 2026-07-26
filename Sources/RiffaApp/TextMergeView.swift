@@ -154,7 +154,15 @@ final class TextMergeModel: ObservableObject {
         panel.prompt = RiffaLocalization.string("Choose")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        load(url: url, for: side)
+        setFile(url, for: side)
+    }
+
+    func setFile(_ url: URL, for side: InputSide) {
+        if hasUnsavedMergeWork,
+           !confirmDiscardMergeWorkAndReload(side: side, fileURL: url) {
+            return
+        }
+        load(url: url.standardizedFileURL, for: side)
     }
 
     func reloadAfterExternalChange(for side: InputSide) {
@@ -810,6 +818,26 @@ struct TextMergeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Text Merge")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .base,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.setFile($0, for: .base)
+            },
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.setFile($0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.setFile($0, for: .right)
+            }
+        ])
         .focusedSceneValue(\.riffaUndoRedoActions, undoRedoActions)
         .task(id: ComparisonInitialLoad(urls: initialURLs, options: initialOptions)) {
             model.openInitial(initialURLs, options: initialOptions)
@@ -906,6 +934,12 @@ struct TextMergeView: View {
             ) {
                 model.chooseFile(for: .base)
             }
+            .riffaResourceDropTarget(
+                role: .base,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.setFile($0, for: .base)
+            }
 
             MergeFileButton(
                 title: "Left file",
@@ -914,6 +948,12 @@ struct TextMergeView: View {
             ) {
                 model.chooseFile(for: .left)
             }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.setFile($0, for: .left)
+            }
 
             MergeFileButton(
                 title: "Right file",
@@ -921,6 +961,12 @@ struct TextMergeView: View {
                 symbol: "arrow.right"
             ) {
                 model.chooseFile(for: .right)
+            }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.setFile($0, for: .right)
             }
         }
     }

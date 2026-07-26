@@ -83,6 +83,11 @@ private final class TableCompareModel: ObservableObject {
     private var rightTerminatesLastRecord = false
     private var loadTasks: [Side: Task<Void, Never>] = [:]
     private var loadTokens: [Side: UUID] = [:]
+    private var saveTasks: [Side: Task<Void, Never>] = [:]
+    private var saveTokens: [Side: UUID] = [:]
+    private var draftTokens = Dictionary(
+        uniqueKeysWithValues: Side.allCases.map { ($0, UUID()) }
+    )
     private var comparisonDebounceTask: Task<Void, Never>?
 
     var visibleRows: [TableComparisonRow] {
@@ -151,10 +156,12 @@ private final class TableCompareModel: ObservableObject {
         unsafeEditingReason == nil
             && document(for: side) != nil
             && rows(for: side) != nil
+            && !loadingSides.contains(side)
             && !savingSides.contains(side)
     }
 
     func chooseFile(for side: Side) {
+        guard ensureNoSaveInProgress() else { return }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -164,6 +171,11 @@ private final class TableCompareModel: ObservableObject {
             : RiffaLocalization.string("Choose Right Delimited File")
         panel.prompt = RiffaLocalization.string("Choose")
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        replaceInput(with: url, for: side)
+    }
+
+    func replaceInput(with url: URL, for side: Side) {
+        guard ensureNoSaveInProgress() else { return }
         let sideTitle = RiffaLocalization.string(side.rawValue).lowercased()
         guard !dirtySides.contains(side) || confirmDiscardDrafts(
             message: String(
@@ -176,6 +188,7 @@ private final class TableCompareModel: ObservableObject {
     }
 
     func openInitial(_ urls: [URL], options: [String: String] = [:]) {
+        guard ensureNoSaveInProgress() else { return }
         guard dirtySides.isEmpty || confirmDiscardDrafts(
             message: RiffaLocalization.string(
                 "Opening another saved table session discards the current output drafts."
@@ -214,6 +227,7 @@ private final class TableCompareModel: ObservableObject {
     }
 
     func loadDemo() {
+        guard ensureNoSaveInProgress() else { return }
         guard dirtySides.isEmpty || confirmDiscardDrafts(
             message: RiffaLocalization.string(
                 "Loading the demo discards the current output drafts."
@@ -257,6 +271,7 @@ private final class TableCompareModel: ObservableObject {
     }
 
     func swapSides() {
+        guard ensureNoSaveInProgress() else { return }
         // Draft arrays, encoding metadata, diagnostics, and dirty markers move
         // together, so swapping never silently discards an edit.
         cancelLoads()
@@ -270,6 +285,8 @@ private final class TableCompareModel: ObservableObject {
             leftTerminatesLastRecord
         )
         dirtySides = Set(dirtySides.map(\.opposite))
+        refreshDraftToken(for: .left)
+        refreshDraftToken(for: .right)
         editSide = editSide.opposite
         selectedRowID = nil
         compareIfReady()
@@ -277,6 +294,7 @@ private final class TableCompareModel: ObservableObject {
 
     func requestDelimiterChange(_ choice: DelimiterChoice) {
         guard choice != delimiter else { return }
+        guard ensureNoSaveInProgress() else { return }
         guard dirtySides.isEmpty || confirmDiscardDrafts(
             message: RiffaLocalization.string(
                 "Changing the delimiter reparses both inputs and discards all edited output drafts."
@@ -397,6 +415,7 @@ private final class TableCompareModel: ObservableObject {
     }
 
     func discardAllDrafts() {
+        guard ensureNoSaveInProgress() else { return }
         do {
             if let leftDocument { apply(try makeDraft(from: leftDocument), to: .left) }
             if let rightDocument { apply(try makeDraft(from: rightDocument), to: .right) }
@@ -465,21 +484,34 @@ private final class TableCompareModel: ObservableObject {
             format: sourceDocument.format,
             fingerprint: sourceDocument.fingerprint
         )
+        let saveToken = UUID()
+        let savedDraftToken = draftTokens[side]
+        saveTokens[side] = saveToken
         savingSides.insert(side)
-        Task { [weak self] in
+        errorMessage = nil
+        saveTasks[side] = Task { [weak self] in
             guard let self else { return }
-            defer { savingSides.remove(side) }
             do {
                 _ = try await documentStore.save(outputDocument, to: destinationURL)
-                dirtySides.remove(side)
-                errorMessage = nil
+                try Task.checkCancellation()
+                guard saveTokens[side] == saveToken else { return }
+                if draftTokens[side] == savedDraftToken {
+                    dirtySides.remove(side)
+                }
+            } catch is CancellationError {
+                // The matching token is cleaned up below.
             } catch {
+                guard saveTokens[side] == saveToken else { return }
                 errorMessage = String(
                     localized: "Could not save table output: \(error.localizedDescription)",
                     bundle: RiffaLocalization.localizedBundle,
                     locale: RiffaLocalization.locale
                 )
             }
+            guard saveTokens[side] == saveToken else { return }
+            saveTokens[side] = nil
+            saveTasks[side] = nil
+            savingSides.remove(side)
         }
     }
 
@@ -523,6 +555,7 @@ private final class TableCompareModel: ObservableObject {
     private func load(url: URL, for side: Side) {
         loadTasks[side]?.cancel()
         let token = UUID()
+        let replacedDraftToken = draftTokens[side]
         loadTokens[side] = token
         loadingSides.insert(side)
         loadTasks[side] = Task { [weak self] in
@@ -532,6 +565,14 @@ private final class TableCompareModel: ObservableObject {
                 try Task.checkCancellation()
                 let draft = try makeDraft(from: document)
                 guard loadTokens[side] == token else { return }
+                guard draftTokens[side] == replacedDraftToken else {
+                    errorMessage = RiffaLocalization.string(
+                        "The input was not replaced because its output draft changed while the file was loading."
+                    )
+                    loadingSides.remove(side)
+                    loadTasks[side] = nil
+                    return
+                }
                 setURL(url, for: side)
                 setDocument(document, for: side)
                 apply(draft, to: side)
@@ -739,6 +780,7 @@ private final class TableCompareModel: ObservableObject {
         case .left: leftRows = rows
         case .right: rightRows = rows
         }
+        refreshDraftToken(for: side)
     }
 
     private func document(for side: Side) -> DecodedTextDocument? {
@@ -786,6 +828,20 @@ private final class TableCompareModel: ObservableObject {
         alert.addButton(withTitle: RiffaLocalization.string("Discard Draft"))
         alert.addButton(withTitle: RiffaLocalization.string("Cancel"))
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func ensureNoSaveInProgress() -> Bool {
+        guard savingSides.isEmpty else {
+            errorMessage = RiffaLocalization.string(
+                "Wait for the current save to finish before changing inputs or drafts."
+            )
+            return false
+        }
+        return true
+    }
+
+    private func refreshDraftToken(for side: Side) {
+        draftTokens[side] = UUID()
     }
 
     private func cancelLoads() {
@@ -918,6 +974,20 @@ struct TableCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Table Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
+            },
+        ])
         .alert(
             "Table comparison error",
             isPresented: Binding(
@@ -1044,6 +1114,12 @@ struct TableCompareView: View {
                 isDirty: model.dirtySides.contains(.left),
                 isLoading: model.loadingSides.contains(.left)
             ) { model.chooseFile(for: .left) }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            }
 
             Button {
                 model.swapSides()
@@ -1063,6 +1139,12 @@ struct TableCompareView: View {
                 isDirty: model.dirtySides.contains(.right),
                 isLoading: model.loadingSides.contains(.right)
             ) { model.chooseFile(for: .right) }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
+            }
         }
     }
 

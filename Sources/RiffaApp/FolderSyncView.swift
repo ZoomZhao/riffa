@@ -60,9 +60,20 @@ private final class FolderSyncModel: ObservableObject {
         panel.prompt = RiffaLocalization.string("Choose")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        setFolder(url, for: side)
+    }
+
+    func setFolder(_ url: URL, for side: Side) {
+        guard !isApplying else {
+            errorMessage = RiffaLocalization.string(
+                "Wait for the current file operation to finish before replacing an input."
+            )
+            return
+        }
+        let standardizedURL = url.standardizedFileURL
         switch side {
-        case .left: leftURL = url
-        case .right: rightURL = url
+        case .left: leftURL = standardizedURL
+        case .right: rightURL = standardizedURL
         }
         compareIfReady()
     }
@@ -501,6 +512,20 @@ struct FolderSyncView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Folder Sync")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .right)
+            }
+        ])
         .task(id: ComparisonInitialLoad(urls: initialURLs, options: initialOptions)) {
             model.openInitial(initialURLs, options: initialOptions)
         }
@@ -606,6 +631,12 @@ struct FolderSyncView: View {
             SyncFolderButton(title: "Left folder", url: model.leftURL) {
                 model.chooseFolder(for: .left)
             }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .left)
+            }
             Button {
                 model.swapSides()
             } label: {
@@ -620,7 +651,14 @@ struct FolderSyncView: View {
             SyncFolderButton(title: "Right folder", url: model.rightURL) {
                 model.chooseFolder(for: .right)
             }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .right)
+            }
         }
+        .disabled(model.isApplying)
     }
 
     private func planContent(_ plan: FolderSyncPlan) -> some View {

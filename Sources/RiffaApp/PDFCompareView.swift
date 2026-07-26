@@ -277,6 +277,10 @@ private final class PDFCompareModel: ObservableObject {
             : RiffaLocalization.string("Choose Right PDF")
         panel.prompt = RiffaLocalization.string("Choose")
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        replaceInput(with: url, for: side)
+    }
+
+    func replaceInput(with url: URL, for side: Side) {
         setURL(url, for: side)
     }
 
@@ -630,6 +634,20 @@ struct PDFCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("PDF Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
+            },
+        ])
         .alert(
             "PDF comparison error",
             isPresented: Binding(
@@ -739,6 +757,12 @@ struct PDFCompareView: View {
             ) {
                 model.choosePDF(for: .left)
             }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            }
             Button {
                 model.swapSides()
             } label: {
@@ -759,6 +783,12 @@ struct PDFCompareView: View {
                 accessibilityHint: "Choose the right PDF document"
             ) {
                 model.choosePDF(for: .right)
+            }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
             }
         }
     }

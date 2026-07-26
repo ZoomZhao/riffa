@@ -69,11 +69,15 @@ struct RiffaRootView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationSplitViewStyle(.balanced)
+        .riffaCoordinatedWindowDrops(fallback: openDroppedResources)
         .background(ComparisonWindowRegistrationView())
         .focusedSceneValue(\.riffaSessionSelection, $selection)
         .onOpenURL { enqueueExternalURL($0) }
         .onChange(of: comparisonOpenBroker.request, initial: true) { _, request in
-            guard let request else { return }
+            guard let request,
+                  comparisonOpenBroker.claimExternalOpen(request) else {
+                return
+            }
             acceptBrokerRequest(request)
         }
         .onChange(of: selection) { _, newValue in
@@ -152,6 +156,11 @@ struct RiffaRootView: View {
         } else {
             HomeView(selection: $selection)
         }
+    }
+
+    private func openDroppedResources(_ urls: [URL]) throws {
+        let request = try comparisonOpenBroker.prepareExternalOpen(urls: urls)
+        acceptBrokerRequest(request)
     }
 
     private func initialURLs(for kind: SessionKind) -> [URL] {

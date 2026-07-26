@@ -56,6 +56,10 @@ private final class HexCompareModel: ObservableObject {
         panel.prompt = RiffaLocalization.string("Choose")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        replaceInput(with: url, for: side)
+    }
+
+    func replaceInput(with url: URL, for side: Side) {
         set(url: url, for: side)
         compareIfReady()
     }
@@ -328,6 +332,14 @@ struct HexCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Hex Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(role: .left, acceptedKind: .realRegularFile) {
+                model.replaceInput(with: $0, for: .left)
+            },
+            RiffaDropZone(role: .right, acceptedKind: .realRegularFile) {
+                model.replaceInput(with: $0, for: .right)
+            },
+        ])
         .alert(
             "Hex comparison error",
             isPresented: Binding(
@@ -451,6 +463,12 @@ struct HexCompareView: View {
             HexPathButton(title: "Left file", url: model.leftURL) {
                 model.chooseFile(for: .left)
             }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .realRegularFile
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            }
             Button { model.swapSides() } label: {
                 Label("Swap files", systemImage: "arrow.left.arrow.right")
             }
@@ -462,6 +480,12 @@ struct HexCompareView: View {
             .disabled(!model.hasAnyURL)
             HexPathButton(title: "Right file", url: model.rightURL) {
                 model.chooseFile(for: .right)
+            }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .realRegularFile
+            ) {
+                model.replaceInput(with: $0, for: .right)
             }
         }
     }

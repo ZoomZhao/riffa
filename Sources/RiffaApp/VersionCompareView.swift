@@ -54,6 +54,10 @@ private final class VersionCompareModel: ObservableObject {
         )
         panel.prompt = RiffaLocalization.string("Choose")
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        replaceInput(with: url, for: side)
+    }
+
+    func replaceInput(with url: URL, for side: Side) {
         setURL(url, for: side)
     }
 
@@ -192,6 +196,14 @@ struct VersionCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Version Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(role: .left, acceptedKind: .realFileOrDirectory) {
+                model.replaceInput(with: $0, for: .left)
+            },
+            RiffaDropZone(role: .right, acceptedKind: .realFileOrDirectory) {
+                model.replaceInput(with: $0, for: .right)
+            },
+        ])
         .alert(
             "Version comparison error",
             isPresented: Binding(
@@ -261,6 +273,12 @@ struct VersionCompareView: View {
                 title: "Left file or bundle",
                 url: model.leftURL
             ) { model.chooseResource(for: .left) }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .realFileOrDirectory
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            }
             Button { model.swapSides() } label: {
                 Label("Swap resources", systemImage: "arrow.left.arrow.right")
             }
@@ -274,6 +292,12 @@ struct VersionCompareView: View {
                 title: "Right file or bundle",
                 url: model.rightURL
             ) { model.chooseResource(for: .right) }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .realFileOrDirectory
+            ) {
+                model.replaceInput(with: $0, for: .right)
+            }
         }
     }
 
