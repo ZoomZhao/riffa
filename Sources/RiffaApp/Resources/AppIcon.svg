@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect
+    x="48"
+    y="48"
+    width="928"
+    height="928"
+    rx="216"
+    fill="#0f1011"
+    stroke="#34343a"
+    stroke-width="16"
+  />
+
+  <rect
+    x="214"
+    y="226"
+    width="238"
+    height="472"
+    rx="50"
+    fill="none"
+    stroke="#828fff"
+    stroke-width="28"
+  />
+  <path
+    d="M278 344h102M278 414h118M278 484h86"
+    fill="none"
+    stroke="#d0d6e0"
+    stroke-linecap="round"
+    stroke-width="22"
+  />
+
+  <rect
+    x="572"
+    y="326"
+    width="238"
+    height="472"
+    rx="50"
+    fill="#5e6ad2"
+  />
+  <path
+    d="M636 444h102M636 514h118M636 584h86"
+    fill="none"
+    stroke="#f7f8f8"
+    stroke-linecap="round"
+    stroke-width="22"
+  />
+
+  <path
+    d="M518 202L466 390L554 554L482 822"
+    fill="none"
+    stroke="#828fff"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="34"
+  />
+</svg>

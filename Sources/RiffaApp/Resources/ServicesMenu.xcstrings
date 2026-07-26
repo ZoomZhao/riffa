@@ -1,0 +1,78 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Compare Files" : {
+      "comment" : "Finder Services menu command.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare Files"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比较文件"
+          }
+        }
+      }
+    },
+    "Compare Folders" : {
+      "comment" : "Finder Services menu command.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare Folders"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比较文件夹"
+          }
+        }
+      }
+    },
+    "Select Left File for Compare" : {
+      "comment" : "Finder Services menu command that remembers the first file.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select Left File for Compare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择左侧文件以比较"
+          }
+        }
+      }
+    },
+    "Select Left Folder for Compare" : {
+      "comment" : "Finder Services menu command that remembers the first folder.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select Left Folder for Compare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择左侧文件夹以比较"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

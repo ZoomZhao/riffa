@@ -1,0 +1,3 @@
+name=Riffa
+color=coral
+mode=preview

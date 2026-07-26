@@ -1,0 +1,14 @@
+# 14 — PDF Compare: Pages
+
+```text
+Use case: ui-mockup
+Asset type: high-fidelity production-ready macOS desktop app screen for Riffa
+Input images: Image 1 is the master visual-system reference only. Preserve its Riffa macOS shell, proportions, component density, typography scale, sidebar rhythm, toolbar language, surface ladder, and craftsmanship; do not copy its Text Compare page content.
+Primary request: design the populated “PDF Compare” page in its “Pages” detail mode.
+Scene/backdrop: one complete 3:2 macOS application window with native traffic lights, title “Riffa”, left navigation sidebar, compact PDF header and toolbar, page navigator, synchronized page previews, compact page-change inspector, and bottom status bar.
+Style/medium: shippable native SwiftUI/AppKit product UI, SF Pro with SF Mono for paths and page metrics, crisp flat surfaces and 1 px separators.
+Composition/framing: match Image 1’s full-window framing. Select “PDF Compare” in the sidebar with restrained lavender. Header title “PDF Compare”, subtitle “Pages, extracted text, visual raster, and metadata”. Toolbar includes “Save Session”, segmented detail control “Pages | Text | Visual | Metadata” with “Pages” selected, checked “Differences”, and “Export Report”. Path controls show “/Users/alex/Documents/Annual-Report-2025-v3.pdf” and “/Users/alex/Documents/Annual-Report-2025-v4.pdf” with a swap button. A narrow left page navigator lists “Page 1  = Same”, “Page 2  ≠ Changed” selected, “Page 3  ≠ Changed”, “Page 4  → Right only”, “Page 5  = Same”, through Page 8. Main content shows synchronized paper-white raster previews of page 2 on the dark canvas, labeled “LEFT · PAGE 2” and “RIGHT · PAGE 2”. The page itself is a restrained annual-report layout with heading “Revenue by Region”, a compact table, and a bar chart. Mark two changed regions using numbered thin outlines and diagonal hatch underlays, not color alone: value “$12.4M” vs “$13.1M” and caption “EMEA +8%” vs “EMEA +12%”. A right inspector titled “Page 2” shows badge “≠ Changed”, “2 text changes”, “1 visual change”, “612 × 792 pt”, and small Previous/Next buttons. Bottom status reads “Ready”, “8 pages”, “2 changed”, “1 right only”, “Page 2 of 8”.
+Color palette: exact dark-only DESIGN.md palette—canvas #010102, surfaces #0f1011 #141516 #18191a, ink #f7f8f8, muted #d0d6e0, subtle #8a8f98, hairlines #23252a. Lavender #5e6ad2 only for selected navigation/mode, focus, and primary action. PDF paper may be warm off-white for document fidelity; all surrounding application chrome remains dark.
+Constraints: page status uses symbol plus label; change regions survive grayscale; practical readable text; previews align; no clipped controls; native SF symbols only; no proprietary Beyond Compare branding.
+Avoid: gradients, glass, blur, translucency, drop shadows, floating glossy paper, decorative glow, neon heat maps, bright side colors, oversized cards, concept art, watermark, fake corporate logos.
+```

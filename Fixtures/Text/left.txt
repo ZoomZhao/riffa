@@ -1,0 +1,5 @@
+{
+  "name": "Riffa",
+  "platform": "macOS",
+  "features": ["text", "folder"]
+}
