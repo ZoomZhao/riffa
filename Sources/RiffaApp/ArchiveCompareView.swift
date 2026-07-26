@@ -239,8 +239,8 @@ private final class ArchiveCompareModel: ObservableObject {
         guard panel.runModal() == .OK, let selectedURL = panel.url else { return }
 
         do {
-            setURL(
-                try accessRegistry.registerIncomingURL(selectedURL),
+            replaceInput(
+                with: try accessRegistry.registerIncomingURL(selectedURL),
                 for: side
             )
         } catch {
@@ -248,6 +248,10 @@ private final class ArchiveCompareModel: ObservableObject {
                 "macOS did not grant access to the selected archive."
             )
         }
+    }
+
+    func replaceInput(with url: URL, for side: Side) {
+        setURL(url, for: side)
     }
 
     func openInitial(_ urls: [URL], options: [String: String] = [:]) {
@@ -481,6 +485,20 @@ struct ArchiveCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Archive Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
+            },
+        ])
         .alert(
             "Archive comparison error",
             isPresented: Binding(
@@ -547,6 +565,12 @@ struct ArchiveCompareView: View {
             ArchivePathButton(title: "Left archive", url: model.leftURL) {
                 model.chooseArchive(for: .left, accessRegistry: accessRegistry)
             }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            }
             Button { model.swapSides() } label: {
                 Label("Swap archives", systemImage: "arrow.left.arrow.right")
             }
@@ -558,6 +582,12 @@ struct ArchiveCompareView: View {
             .disabled(model.leftURL == nil && model.rightURL == nil)
             ArchivePathButton(title: "Right archive", url: model.rightURL) {
                 model.chooseArchive(for: .right, accessRegistry: accessRegistry)
+            }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
             }
         }
     }

@@ -289,12 +289,16 @@ private final class OfficeCompareModel: ObservableObject {
 
         do {
             let registeredURL = try accessRegistry.registerIncomingURL(selectedURL)
-            setURL(registeredURL, for: side)
+            replaceInput(with: registeredURL, for: side)
         } catch {
             errorMessage = RiffaLocalization.string(
                 "macOS did not grant access to the selected Office document."
             )
         }
+    }
+
+    func replaceInput(with url: URL, for side: Side) {
+        setURL(url, for: side)
     }
 
     func openInitial(_ urls: [URL], options: [String: String] = [:]) {
@@ -452,6 +456,20 @@ struct OfficeCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Office Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
+            },
+        ])
         .alert(
             "Office comparison error",
             isPresented: Binding(
@@ -518,6 +536,12 @@ struct OfficeCompareView: View {
             ) {
                 model.chooseDocument(for: .left, accessRegistry: accessRegistry)
             }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            }
             Button { model.swapSides() } label: {
                 Label("Swap Office documents", systemImage: "arrow.left.arrow.right")
             }
@@ -532,6 +556,12 @@ struct OfficeCompareView: View {
                 url: model.rightURL
             ) {
                 model.chooseDocument(for: .right, accessRegistry: accessRegistry)
+            }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
             }
         }
     }

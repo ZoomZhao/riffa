@@ -6,7 +6,7 @@ import SwiftUI
 
 @MainActor
 private final class MediaCompareModel: ObservableObject {
-    enum Side { case left, right }
+    enum Side: Hashable { case left, right }
 
     @Published private(set) var leftURL: URL?
     @Published private(set) var rightURL: URL?
@@ -20,7 +20,13 @@ private final class MediaCompareModel: ObservableObject {
 
     private var leftFields: [MetadataField]?
     private var rightFields: [MetadataField]?
-    private var loadingTask: Task<Void, Never>?
+    private var initialLoadingTask: Task<Void, Never>?
+    private var initialLoadToken: UUID?
+    private var sideLoadingTasks: [Side: Task<Void, Never>] = [:]
+    private var sideLoadTokens: [Side: UUID] = [:]
+    private var sideLoadBatchToken = UUID()
+    private var stagedSideLoads: [Side: (url: URL, fields: [MetadataField])] = [:]
+    private var failedSideLoads: Set<Side> = []
 
     var visibleRows: [IdentifiedMetadataRow] {
         guard let result else { return [] }
@@ -38,6 +44,11 @@ private final class MediaCompareModel: ObservableObject {
         )
         panel.prompt = RiffaLocalization.string("Choose")
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        replaceInput(with: url, for: side)
+    }
+
+    func replaceInput(with url: URL, for side: Side) {
+        cancelInitialLoad()
         load(url: url, for: side)
     }
 
@@ -54,31 +65,39 @@ private final class MediaCompareModel: ObservableObject {
         if let value = options.riffaBoolean(for: "showDifferencesOnly") {
             showDifferencesOnly = value
         }
+        cancelAllLoads()
         guard let leftURL = urls.first else { return }
         guard urls.count > 1 else {
             load(url: leftURL, for: .left)
             return
         }
         let rightURL = urls[1]
-        loadingTask?.cancel()
-        isLoading = true
+        let token = UUID()
+        initialLoadToken = token
+        refreshLoadingState()
         errorMessage = nil
-        loadingTask = Task { [weak self] in
-            guard let self else { return }
+        initialLoadingTask = Task { [weak self] in
             do {
                 async let left = Self.extractMetadata(from: leftURL)
                 async let right = Self.extractMetadata(from: rightURL)
                 let fields = try await (left, right)
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled,
+                      let self,
+                      self.initialLoadToken == token else { return }
                 self.leftURL = leftURL
                 self.rightURL = rightURL
                 self.leftFields = fields.0
                 self.rightFields = fields.1
-                self.isLoading = false
+                self.finishInitialLoad(token: token)
                 self.compareIfReady()
+            } catch is CancellationError {
+                guard let self else { return }
+                self.finishInitialLoad(token: token)
             } catch {
-                guard !Task.isCancelled else { return }
-                self.isLoading = false
+                guard !Task.isCancelled,
+                      let self,
+                      self.initialLoadToken == token else { return }
+                self.finishInitialLoad(token: token)
                 self.errorMessage = String(
                     localized: "Could not inspect the opened media: \(error.localizedDescription)",
                     bundle: RiffaLocalization.localizedBundle,
@@ -89,6 +108,7 @@ private final class MediaCompareModel: ObservableObject {
     }
 
     func loadDemo() {
+        cancelAllLoads()
         leftURL = URL(fileURLWithPath: "/Demo/episode-master.m4a")
         rightURL = URL(fileURLWithPath: "/Demo/episode-release.m4a")
         leftFields = [
@@ -111,6 +131,7 @@ private final class MediaCompareModel: ObservableObject {
     }
 
     func swapSides() {
+        cancelAllLoads()
         (leftURL, rightURL) = (rightURL, leftURL)
         (leftFields, rightFields) = (rightFields, leftFields)
         compareIfReady()
@@ -152,34 +173,105 @@ private final class MediaCompareModel: ObservableObject {
     }
 
     private func load(url: URL, for side: Side) {
-        loadingTask?.cancel()
-        isLoading = true
+        if sideLoadTokens.isEmpty {
+            sideLoadBatchToken = UUID()
+            stagedSideLoads.removeAll()
+            failedSideLoads.removeAll()
+        }
+        let batchToken = sideLoadBatchToken
+        sideLoadingTasks[side]?.cancel()
+        let token = UUID()
+        sideLoadTokens[side] = token
+        stagedSideLoads[side] = nil
+        failedSideLoads.remove(side)
+        refreshLoadingState()
         errorMessage = nil
-        loadingTask = Task { [weak self] in
-            guard let self else { return }
+        sideLoadingTasks[side] = Task { [weak self] in
             do {
                 let fields = try await Self.extractMetadata(from: url)
-                guard !Task.isCancelled else { return }
-                switch side {
-                case .left:
-                    leftURL = url
-                    leftFields = fields
-                case .right:
-                    rightURL = url
-                    rightFields = fields
-                }
-                isLoading = false
-                compareIfReady()
+                guard !Task.isCancelled,
+                      let self,
+                      self.sideLoadTokens[side] == token,
+                      self.sideLoadBatchToken == batchToken else { return }
+                self.stagedSideLoads[side] = (url: url, fields: fields)
+                self.finishSideLoad(side, token: token)
+                self.finishSideLoadBatchIfReady(token: batchToken)
+            } catch is CancellationError {
+                guard let self else { return }
+                self.finishSideLoad(side, token: token)
             } catch {
-                guard !Task.isCancelled else { return }
-                isLoading = false
-                errorMessage = String(
+                guard !Task.isCancelled,
+                      let self,
+                      self.sideLoadTokens[side] == token,
+                      self.sideLoadBatchToken == batchToken else { return }
+                self.failedSideLoads.insert(side)
+                self.finishSideLoad(side, token: token)
+                self.errorMessage = String(
                     localized: "Could not inspect \(url.lastPathComponent): \(error.localizedDescription)",
                     bundle: RiffaLocalization.localizedBundle,
                     locale: RiffaLocalization.locale
                 )
+                self.finishSideLoadBatchIfReady(token: batchToken)
             }
         }
+    }
+
+    private func cancelInitialLoad() {
+        initialLoadingTask?.cancel()
+        initialLoadingTask = nil
+        initialLoadToken = nil
+        refreshLoadingState()
+    }
+
+    private func cancelAllLoads() {
+        cancelInitialLoad()
+        for task in sideLoadingTasks.values {
+            task.cancel()
+        }
+        sideLoadingTasks.removeAll()
+        sideLoadTokens.removeAll()
+        sideLoadBatchToken = UUID()
+        stagedSideLoads.removeAll()
+        failedSideLoads.removeAll()
+        refreshLoadingState()
+    }
+
+    private func finishInitialLoad(token: UUID) {
+        guard initialLoadToken == token else { return }
+        initialLoadingTask = nil
+        initialLoadToken = nil
+        refreshLoadingState()
+    }
+
+    private func finishSideLoad(_ side: Side, token: UUID) {
+        guard sideLoadTokens[side] == token else { return }
+        sideLoadingTasks[side] = nil
+        sideLoadTokens[side] = nil
+        refreshLoadingState()
+    }
+
+    private func refreshLoadingState() {
+        isLoading = initialLoadToken != nil || !sideLoadTokens.isEmpty
+    }
+
+    private func finishSideLoadBatchIfReady(token: UUID) {
+        guard sideLoadBatchToken == token, sideLoadTokens.isEmpty else { return }
+        let stagedLoads = stagedSideLoads
+        let shouldCommit = failedSideLoads.isEmpty
+        sideLoadBatchToken = UUID()
+        stagedSideLoads.removeAll()
+        failedSideLoads.removeAll()
+        guard shouldCommit else { return }
+
+        if let loaded = stagedLoads[.left] {
+            leftURL = loaded.url
+            leftFields = loaded.fields
+        }
+        if let loaded = stagedLoads[.right] {
+            rightURL = loaded.url
+            rightFields = loaded.fields
+        }
+        compareIfReady()
     }
 
     private func compareIfReady() {
@@ -354,6 +446,20 @@ struct MediaCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Media Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
+            },
+        ])
         .alert(
             "Media comparison error",
             isPresented: Binding(
@@ -432,6 +538,12 @@ struct MediaCompareView: View {
             MediaPathButton(title: "Left media", url: model.leftURL) {
                 model.chooseFile(for: .left)
             }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            }
             Button { model.swapSides() } label: {
                 Label("Swap media files", systemImage: "arrow.left.arrow.right")
             }
@@ -443,6 +555,12 @@ struct MediaCompareView: View {
                 .disabled(model.leftURL == nil && model.rightURL == nil)
             MediaPathButton(title: "Right media", url: model.rightURL) {
                 model.chooseFile(for: .right)
+            }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
             }
         }
     }

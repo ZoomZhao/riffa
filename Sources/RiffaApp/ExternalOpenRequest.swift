@@ -310,6 +310,7 @@ final class ComparisonOpenBroker: ObservableObject {
     @Published private(set) var request: ExternalOpenRequest?
 
     private var expirationTask: Task<Void, Never>?
+    private var claimedRequestID: UUID?
     private let accessRegistry: SecurityScopedAccessRegistry
 
     init(accessRegistry: SecurityScopedAccessRegistry) {
@@ -325,6 +326,20 @@ final class ComparisonOpenBroker: ObservableObject {
         revealComparisonWindow: () -> Void
     ) {
         publish(prepared, revealComparisonWindow: revealComparisonWindow)
+    }
+
+    /// Claims the current request for exactly one comparison window.
+    ///
+    /// `ComparisonOpenBroker` is shared by every scene, so every live
+    /// `RiffaRootView` observes the same publication. Requiring a claim keeps a
+    /// drop in an auxiliary window from replacing every comparison window.
+    func claimExternalOpen(_ candidate: ExternalOpenRequest) -> Bool {
+        guard request?.id == candidate.id,
+              claimedRequestID != candidate.id else {
+            return false
+        }
+        claimedRequestID = candidate.id
+        return true
     }
 
     func open(
@@ -344,6 +359,7 @@ final class ComparisonOpenBroker: ObservableObject {
         revealComparisonWindow: () -> Void
     ) {
         expirationTask?.cancel()
+        claimedRequestID = nil
         request = prepared
         revealComparisonWindow()
 

@@ -64,6 +64,10 @@ private final class MetadataCompareModel: ObservableObject {
             : RiffaLocalization.string("Choose Right File or Folder")
         panel.prompt = RiffaLocalization.string("Choose")
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        replaceInput(with: url, for: side)
+    }
+
+    func replaceInput(with url: URL, for side: Side) {
         setURL(url, for: side)
     }
 
@@ -226,6 +230,14 @@ struct MetadataCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Metadata Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(role: .left, acceptedKind: .anyExistingEntry) {
+                model.replaceInput(with: $0, for: .left)
+            },
+            RiffaDropZone(role: .right, acceptedKind: .anyExistingEntry) {
+                model.replaceInput(with: $0, for: .right)
+            },
+        ])
         .alert(
             "Metadata comparison error",
             isPresented: Binding(
@@ -286,6 +298,12 @@ struct MetadataCompareView: View {
                 title: "Left item",
                 url: model.leftURL
             ) { model.chooseItem(for: .left) }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .anyExistingEntry
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            }
             Button { model.swapSides() } label: {
                 Image(systemName: "arrow.left.arrow.right")
             }
@@ -298,6 +316,12 @@ struct MetadataCompareView: View {
                 title: "Right item",
                 url: model.rightURL
             ) { model.chooseItem(for: .right) }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .anyExistingEntry
+            ) {
+                model.replaceInput(with: $0, for: .right)
+            }
         }
     }
 

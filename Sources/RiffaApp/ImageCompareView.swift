@@ -80,6 +80,10 @@ private final class ImageCompareModel: ObservableObject {
             : RiffaLocalization.string("Choose Right Image")
         panel.prompt = RiffaLocalization.string("Choose")
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        replaceInput(with: url, for: side)
+    }
+
+    func replaceInput(with url: URL, for side: Side) {
         load(url: url, for: side)
     }
 
@@ -435,6 +439,20 @@ struct ImageCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Image Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
+            },
+        ])
         .alert(
             "Image comparison error",
             isPresented: Binding(
@@ -514,6 +532,12 @@ struct ImageCompareView: View {
             ) {
                 model.chooseImage(for: .left)
             }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            }
 
             Button { model.swapSides() } label: {
                 Label("Swap images", systemImage: "arrow.left.arrow.right")
@@ -532,6 +556,12 @@ struct ImageCompareView: View {
                 accessibilityHint: "Opens a local image picker for the right side"
             ) {
                 model.chooseImage(for: .right)
+            }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
             }
         }
     }

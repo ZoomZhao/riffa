@@ -155,6 +155,14 @@ final class TextCompareModel: ObservableObject {
         panel.prompt = RiffaLocalization.string("Choose")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        replaceInput(with: url, for: side)
+    }
+
+    func replaceInput(with url: URL, for side: Side) {
+        if hasUnsavedDraft(for: side),
+           !confirmDiscardDraftAndReload(side: side, fileURL: url) {
+            return
+        }
         load(url: url, for: side)
     }
 
@@ -1440,6 +1448,20 @@ struct TextCompareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Text Compare")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
+            },
+        ])
         .onChange(of: model.leftDraft) { _, _ in
             model.refreshDraftComparison(changedSide: .left)
         }
@@ -1776,6 +1798,12 @@ struct TextCompareView: View {
             ) {
                 model.chooseFile(for: .left)
             }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .left)
+            }
 
             Button {
                 model.swapSides()
@@ -1793,6 +1821,12 @@ struct TextCompareView: View {
                 url: model.rightURL
             ) {
                 model.chooseFile(for: .right)
+            }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.replaceInput(with: $0, for: .right)
             }
         }
     }

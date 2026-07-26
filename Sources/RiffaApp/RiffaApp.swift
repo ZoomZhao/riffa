@@ -47,6 +47,7 @@ struct RiffaApp: App {
             id: "session-library"
         ) {
             SessionLibraryView()
+                .riffaOpensComparisonOnDrop()
                 .environmentObject(comparisonOpenBroker)
                 .environmentObject(securityScopedAccessRegistry)
                 .environmentObject(workspaceCatalogCoordinator)
@@ -65,19 +66,22 @@ struct RiffaApp: App {
             id: "workspace",
             for: UUID.self
         ) { $windowID in
-            if let windowID {
-                WorkspaceWindowView(windowID: windowID)
-                    .environmentObject(securityScopedAccessRegistry)
-                    .environmentObject(workspaceCatalogCoordinator)
-                    .riffaAppTheme()
-            } else {
-                ContentUnavailableView(
-                    "Workspace Window Unavailable",
-                    systemImage: "rectangle.on.rectangle.slash",
-                    description: Text("Open a workspace window from the Session Library.")
-                )
-                .riffaAppTheme()
+            Group {
+                if let windowID {
+                    WorkspaceWindowView(windowID: windowID)
+                } else {
+                    ContentUnavailableView(
+                        "Workspace Window Unavailable",
+                        systemImage: "rectangle.on.rectangle.slash",
+                        description: Text("Open a workspace window from the Session Library.")
+                    )
+                }
             }
+            .riffaCoordinatesAndOpensComparisonOnDrop()
+            .environmentObject(comparisonOpenBroker)
+            .environmentObject(securityScopedAccessRegistry)
+            .environmentObject(workspaceCatalogCoordinator)
+            .riffaAppTheme()
         }
         .defaultSize(width: 1180, height: 760)
         .windowStyle(.titleBar)
@@ -91,6 +95,8 @@ struct RiffaApp: App {
             id: "resource-tools"
         ) {
             ResourceToolsView()
+                .riffaOpensComparisonOnDrop()
+                .environmentObject(comparisonOpenBroker)
                 .environmentObject(securityScopedAccessRegistry)
                 .frame(minWidth: 900, minHeight: 580)
                 .riffaAppTheme()
@@ -104,6 +110,9 @@ struct RiffaApp: App {
 
         Settings {
             RiffaSettingsView()
+                .riffaOpensComparisonOnDrop()
+                .environmentObject(comparisonOpenBroker)
+                .environmentObject(securityScopedAccessRegistry)
                 .riffaAppTheme()
         }
     }

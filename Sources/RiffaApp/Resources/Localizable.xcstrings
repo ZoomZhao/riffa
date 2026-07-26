@@ -34892,6 +34892,406 @@
           }
         }
       }
+    },
+    "Patch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "补丁"
+          }
+        }
+      }
+    },
+    "DROP AS" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DROP AS"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖放为"
+          }
+        }
+      }
+    },
+    "Drop one local folder here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop one local folder here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将一个本地文件夹拖到这里。"
+          }
+        }
+      }
+    },
+    "Drop one local file here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop one local file here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将一个本地文件拖到这里。"
+          }
+        }
+      }
+    },
+    "Drop one local file or folder here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop one local file or folder here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将一个本地文件或文件夹拖到这里。"
+          }
+        }
+      }
+    },
+    "The drop does not contain a local item." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The drop does not contain a local item."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖放内容中没有本地项目。"
+          }
+        }
+      }
+    },
+    "This view has no available drop target." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This view has no available drop target."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前视图没有可用的拖放目标。"
+          }
+        }
+      }
+    },
+    "Drop exactly one item on a specific input." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop exactly one item on a specific input."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在指定输入区仅拖入一个项目。"
+          }
+        }
+      }
+    },
+    "Drop no more than %lld items at once." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop no more than %1$lld items at once."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一次最多拖入 %1$lld 个项目。"
+          }
+        }
+      }
+    },
+    "This workflow needs either one item for a specific side or exactly %lld items; the drop contains %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This workflow needs either one item for a specific side or exactly %1$lld items; the drop contains %2$lld."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此工作流需要为指定一侧拖入一个项目，或一次拖入完整的 %1$lld 个项目；当前拖入了 %2$lld 个。"
+          }
+        }
+      }
+    },
+    "Only local files and folders can be dropped." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only local files and folders can be dropped."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只能拖入本地文件和文件夹。"
+          }
+        }
+      }
+    },
+    "The dropped item is unavailable." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The dropped item is unavailable."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖入的项目不可用。"
+          }
+        }
+      }
+    },
+    "This input requires a folder." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This input requires a folder."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此输入需要文件夹。"
+          }
+        }
+      }
+    },
+    "This input requires a file." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This input requires a file."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此输入需要文件。"
+          }
+        }
+      }
+    },
+    "This input requires a regular file or folder." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This input requires a regular file or folder."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此输入需要普通文件或文件夹。"
+          }
+        }
+      }
+    },
+    "Could not use dropped item" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not use dropped item"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法使用拖入的项目"
+          }
+        }
+      }
+    },
+    "It will replace the %@ input." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It will replace the %1$@ input."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它将替换%1$@输入。"
+          }
+        }
+      }
+    },
+    "Drop to compare" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop to compare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖入并比较"
+          }
+        }
+      }
+    },
+    "Drop up to three local files or folders anywhere in this window." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop up to three local files or folders anywhere in this window."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可在窗口中的任意位置拖入最多三个本地文件或文件夹。"
+          }
+        }
+      }
+    },
+    "Wait for the current file operation to finish before replacing an input." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for the current file operation to finish before replacing an input."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请等待当前文件操作完成，再替换输入。"
+          }
+        }
+      }
+    },
+    "Wait for the current save to finish before changing inputs or drafts." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for the current save to finish before changing inputs or drafts."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请等待当前保存完成后再更改输入或草稿。"
+          }
+        }
+      }
+    },
+    "Discard edited patched output?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard edited patched output?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要丢弃已编辑的补丁输出吗？"
+          }
+        }
+      }
+    },
+    "Changing an input or patch record discards edits made to the in-memory patched output." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changing an input or patch record discards edits made to the in-memory patched output."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改输入或补丁记录将丢弃对内存中补丁输出所做的编辑。"
+          }
+        }
+      }
+    },
+    "The input was not replaced because its output draft changed while the file was loading." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The input was not replaced because its output draft changed while the file was loading."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件加载期间输出草稿已更改，因此未替换输入。"
+          }
+        }
+      }
+    },
+    "Activate to choose a resource." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activate to choose a resource."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按下可选择资源。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

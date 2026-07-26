@@ -70,10 +70,21 @@ private final class FolderMergeModel: ObservableObject {
         )
         panel.prompt = RiffaLocalization.string("Choose")
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        setFolder(url, for: side)
+    }
+
+    func setFolder(_ url: URL, for side: Side) {
+        guard !isMaterializing else {
+            errorMessage = RiffaLocalization.string(
+                "Wait for the current file operation to finish before replacing an input."
+            )
+            return
+        }
+        let standardizedURL = url.standardizedFileURL
         switch side {
-        case .base: baseURL = url
-        case .left: leftURL = url
-        case .right: rightURL = url
+        case .base: baseURL = standardizedURL
+        case .left: leftURL = standardizedURL
+        case .right: rightURL = standardizedURL
         }
         analyzeIfReady()
     }
@@ -378,6 +389,26 @@ struct FolderMergeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Folder Merge")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .base,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .base)
+            },
+            RiffaDropZone(
+                role: .left,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .left)
+            },
+            RiffaDropZone(
+                role: .right,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .right)
+            }
+        ])
         .task(id: ComparisonInitialLoad(urls: initialURLs, options: initialOptions)) {
             model.openInitial(initialURLs, options: initialOptions)
         }
@@ -486,6 +517,12 @@ struct FolderMergeView: View {
             ) {
                 model.chooseFolder(for: .base)
             }
+            .riffaResourceDropTarget(
+                role: .base,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .base)
+            }
 
             RiffaResourcePathButton(
                 title: "Left folder",
@@ -495,6 +532,12 @@ struct FolderMergeView: View {
                 accessibilityHint: "Choose the left variant folder"
             ) {
                 model.chooseFolder(for: .left)
+            }
+            .riffaResourceDropTarget(
+                role: .left,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .left)
             }
 
             RiffaResourcePathButton(
@@ -506,7 +549,14 @@ struct FolderMergeView: View {
             ) {
                 model.chooseFolder(for: .right)
             }
+            .riffaResourceDropTarget(
+                role: .right,
+                acceptedKind: .realDirectory
+            ) {
+                model.setFolder($0, for: .right)
+            }
         }
+        .disabled(model.isMaterializing)
     }
 
     private func mergeContent(_ result: FolderMergeResult) -> some View {

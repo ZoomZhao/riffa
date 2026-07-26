@@ -190,12 +190,7 @@ private final class TextPatchModel: ObservableObject {
     @Published private(set) var patch: UnifiedPatch?
     @Published private(set) var records: [TextPatchRecordSummary] = []
     @Published private(set) var targetDocument: DecodedTextDocument?
-    @Published var selectedFileIndex: Int? {
-        didSet {
-            guard selectedFileIndex != oldValue else { return }
-            invalidatePreview()
-        }
-    }
+    @Published private(set) var selectedFileIndex: Int?
     @Published var outputDraft = ""
     @Published private(set) var outputLineCount: Int?
     @Published private(set) var isLoadingPatch = false
@@ -209,6 +204,8 @@ private final class TextPatchModel: ObservableObject {
     private var targetTask: Task<Void, Never>?
     private var applyTask: Task<Void, Never>?
     private var saveTask: Task<Void, Never>?
+    private var saveToken: UUID?
+    private var savedOutputDraft: String?
 
     var selectedRecord: TextPatchRecordSummary? {
         guard let selectedFileIndex else { return nil }
@@ -217,9 +214,14 @@ private final class TextPatchModel: ObservableObject {
 
     var hasPreview: Bool { outputLineCount != nil }
 
+    var hasEditedPreview: Bool {
+        guard hasPreview, let savedOutputDraft else { return false }
+        return outputDraft != savedOutputDraft
+    }
+
     var canBuildPreview: Bool {
         patch != nil && selectedFileIndex != nil && targetDocument != nil
-            && !isLoadingPatch && !isLoadingTarget && !isApplying
+            && !isLoadingPatch && !isLoadingTarget && !isApplying && !isSaving
     }
 
     var selectedFileOption: Int64 {
@@ -227,6 +229,10 @@ private final class TextPatchModel: ObservableObject {
     }
 
     func choosePatch(accessRegistry: SecurityScopedAccessRegistry) {
+        guard !isSaving else {
+            reportSaveInProgress()
+            return
+        }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -242,7 +248,7 @@ private final class TextPatchModel: ObservableObject {
         guard panel.runModal() == .OK, let selectedURL = panel.url else { return }
         do {
             let url = try accessRegistry.registerIncomingURL(selectedURL)
-            loadPatch(from: url, preferredFileIndex: nil)
+            setPatch(url)
         } catch {
             errorMessage = String(
                 localized: "Could not preserve sandbox access for \(selectedURL.lastPathComponent). Re-select the patch file.",
@@ -253,6 +259,10 @@ private final class TextPatchModel: ObservableObject {
     }
 
     func chooseTarget(accessRegistry: SecurityScopedAccessRegistry) {
+        guard !isSaving else {
+            reportSaveInProgress()
+            return
+        }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -265,7 +275,7 @@ private final class TextPatchModel: ObservableObject {
         guard panel.runModal() == .OK, let selectedURL = panel.url else { return }
         do {
             let url = try accessRegistry.registerIncomingURL(selectedURL)
-            loadTarget(from: url)
+            setTarget(url)
         } catch {
             errorMessage = String(
                 localized: "Could not preserve sandbox access for \(selectedURL.lastPathComponent). Re-select the target file.",
@@ -275,11 +285,24 @@ private final class TextPatchModel: ObservableObject {
         }
     }
 
+    func setPatch(_ url: URL) {
+        guard canInvalidatePreview() else { return }
+        loadPatch(
+            from: url.standardizedFileURL,
+            preferredFileIndex: nil
+        )
+    }
+
+    func setTarget(_ url: URL) {
+        guard canInvalidatePreview() else { return }
+        loadTarget(from: url.standardizedFileURL)
+    }
+
     func openInitial(_ urls: [URL], options: [String: String]) {
+        guard canInvalidatePreview() else { return }
         patchTask?.cancel()
         targetTask?.cancel()
         applyTask?.cancel()
-        saveTask?.cancel()
         let preferredIndex = options.riffaInteger(for: "selectedFileIndex").flatMap(Int.init(exactly:))
         if let patchURL = urls.first {
             loadPatch(
@@ -290,7 +313,15 @@ private final class TextPatchModel: ObservableObject {
         if urls.count > 1 { loadTarget(from: urls[1]) }
     }
 
+    func selectFileRecord(_ fileIndex: Int?) {
+        guard fileIndex != selectedFileIndex else { return }
+        guard canInvalidatePreview() else { return }
+        selectedFileIndex = fileIndex
+        invalidatePreview()
+    }
+
     func buildPreview() {
+        guard canInvalidatePreview() else { return }
         guard let patch else {
             errorMessage = RiffaLocalization.string(
                 "Choose a unified diff before building a preview."
@@ -310,7 +341,7 @@ private final class TextPatchModel: ObservableObject {
             return
         }
 
-        applyTask?.cancel()
+        invalidatePreview()
         isApplying = true
         statusMessage = nil
         errorMessage = nil
@@ -323,6 +354,7 @@ private final class TextPatchModel: ObservableObject {
                       self.targetDocument == targetDocument
                 else { return }
                 self.outputDraft = preview.text
+                self.savedOutputDraft = preview.text
                 self.outputLineCount = preview.lineCount
                 self.isApplying = false
                 self.statusMessage = RiffaLocalization.string(
@@ -344,7 +376,10 @@ private final class TextPatchModel: ObservableObject {
     }
 
     func saveAs() {
-        guard hasPreview, let targetDocument else { return }
+        guard hasPreview, let targetDocument, !isSaving else {
+            if isSaving { reportSaveInProgress() }
+            return
+        }
         let panel = NSSavePanel()
         panel.title = RiffaLocalization.string("Save Patched Text As")
         panel.prompt = RiffaLocalization.string("Save")
@@ -370,6 +405,7 @@ private final class TextPatchModel: ObservableObject {
                 to: destinationURL
             )
         } success: { _ in
+            self.savedOutputDraft = output
             self.statusMessage = String(
                 localized: "Saved the reviewed output as \(destinationURL.lastPathComponent).",
                 bundle: RiffaLocalization.localizedBundle,
@@ -385,6 +421,10 @@ private final class TextPatchModel: ObservableObject {
     }
 
     func applyToTarget() {
+        guard !isSaving else {
+            reportSaveInProgress()
+            return
+        }
         guard hasPreview,
               let targetURL,
               let targetDocument,
@@ -399,6 +439,7 @@ private final class TextPatchModel: ObservableObject {
                 to: targetURL
             )
         } success: { fingerprint in
+            self.savedOutputDraft = output
             self.targetDocument = DecodedTextDocument(
                 text: output,
                 format: targetDocument.format,
@@ -512,21 +553,36 @@ private final class TextPatchModel: ObservableObject {
         success: @escaping @MainActor (DecodedTextFileFingerprint) -> Void,
         failurePrefix: @escaping @MainActor () -> String
     ) {
-        saveTask?.cancel()
+        guard !isSaving else {
+            reportSaveInProgress()
+            return
+        }
+        let token = UUID()
+        saveToken = token
         isSaving = true
         errorMessage = nil
         saveTask = Task { [weak self] in
             do {
                 let fingerprint = try await operation()
                 try Task.checkCancellation()
-                guard let self else { return }
+                guard let self, self.saveToken == token else { return }
                 self.isSaving = false
+                self.saveToken = nil
+                self.saveTask = nil
                 success(fingerprint)
             } catch is CancellationError {
-                return
-            } catch {
-                guard let self, !Task.isCancelled else { return }
+                guard let self, self.saveToken == token else { return }
                 self.isSaving = false
+                self.saveToken = nil
+                self.saveTask = nil
+            } catch {
+                guard let self,
+                      !Task.isCancelled,
+                      self.saveToken == token
+                else { return }
+                self.isSaving = false
+                self.saveToken = nil
+                self.saveTask = nil
                 if let documentError = error as? DecodedTextDocumentError,
                    documentError.code == .externalModification {
                     self.errorMessage = RiffaLocalization.string(
@@ -546,8 +602,37 @@ private final class TextPatchModel: ObservableObject {
     private func invalidatePreview() {
         applyTask?.cancel()
         outputDraft = ""
+        savedOutputDraft = nil
         outputLineCount = nil
         isApplying = false
+    }
+
+    private func canInvalidatePreview() -> Bool {
+        guard !isSaving else {
+            reportSaveInProgress()
+            return false
+        }
+        return !hasEditedPreview || confirmDiscardEditedPreview()
+    }
+
+    private func reportSaveInProgress() {
+        errorMessage = RiffaLocalization.string(
+            "Wait for the current save to finish before changing inputs or drafts."
+        )
+    }
+
+    private func confirmDiscardEditedPreview() -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = RiffaLocalization.string(
+            "Discard edited patched output?"
+        )
+        alert.informativeText = RiffaLocalization.string(
+            "Changing an input or patch record discards edits made to the in-memory patched output."
+        )
+        alert.addButton(withTitle: RiffaLocalization.string("Discard Draft"))
+        alert.addButton(withTitle: RiffaLocalization.string("Cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     private var suggestedOutputName: String {
@@ -644,6 +729,20 @@ struct TextPatchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Text Patch")
         .background(theme.canvas)
+        .riffaWindowDropZones([
+            RiffaDropZone(
+                role: .patch,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.setPatch($0)
+            },
+            RiffaDropZone(
+                role: .target,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.setTarget($0)
+            }
+        ])
         .alert(
             "Text patch error",
             isPresented: Binding(
@@ -714,6 +813,12 @@ struct TextPatchView: View {
             ) {
                 model.choosePatch(accessRegistry: securityScopedAccessRegistry)
             }
+            .riffaResourceDropTarget(
+                role: .patch,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.setPatch($0)
+            }
 
             Image(systemName: "arrow.right")
                 .symbolRenderingMode(.monochrome)
@@ -728,6 +833,12 @@ struct TextPatchView: View {
                 accessibilityHint: "Choose the local text file to patch"
             ) {
                 model.chooseTarget(accessRegistry: securityScopedAccessRegistry)
+            }
+            .riffaResourceDropTarget(
+                role: .target,
+                acceptedKind: .regularFileFollowingFinalSymbolicLink
+            ) {
+                model.setTarget($0)
             }
         }
     }
@@ -789,7 +900,7 @@ struct TextPatchView: View {
 
             List(selection: Binding(
                 get: { model.selectedFileIndex },
-                set: { model.selectedFileIndex = $0 }
+                set: { model.selectFileRecord($0) }
             )) {
                 ForEach(model.records) { record in
                     VStack(alignment: .leading, spacing: RiffaSpacing.xxs) {
