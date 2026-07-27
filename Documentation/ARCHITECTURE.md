@@ -40,7 +40,7 @@ Midnight 是默认预设，Graphite、Ocean、Forest 提供同样完整的双外
 主页、Settings、Session Library、Workspace、十五类会话和全部 Resource Tools 页面均复用这套
 token 与可访问控件。对应的 ImageGen 实现参考覆盖 26 个页面/模式和一张主视觉系统，逐图完整
 提示词保存在 `Documentation/DesignMockups/Prompts/`。原创品牌标记由 SwiftUI shape 绘制，打包脚本从
-原创 1024px App Icon 主图生成全尺寸 `.icns`，视觉资源不来自 Beyond Compare。
+原创 1024px App Icon 主图生成全尺寸 `.icns`，视觉资源不来自任何第三方软件。
 
 ## 主题、本地化与打包边界
 

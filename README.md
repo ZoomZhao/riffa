@@ -3,9 +3,9 @@
 Riffa（读作 “RIF-fa”，两个音节）是一款面向 Apple Silicon Mac 的原生比较工具。
 `riff` 表示同一主题上的变化，对应“看见变化、理解差异、安全合并”。
 
-项目采用 clean-room 方式开发：本机 Beyond Compare 5.2.3（32296）仅用于观察公开
-行为、整理兼容性清单和设计验收用例；不复制其代码、资源、图标、商标、授权或密钥逻辑。
-Riffa 目前是可运行的独立实现，**并不与 Beyond Compare 完全等价**。
+项目采用 clean-room 方式开发：仅依据公开资料和可观察行为整理兼容性清单、设计验收用例；
+不复制任何第三方软件的代码、资源、图标、商标、授权或密钥逻辑。Riffa 目前是可运行的
+独立实现，**不与任何单一商业产品完全等价**。
 
 ## 当前能力
 
@@ -194,4 +194,4 @@ Documentation/  # 产品边界、兼容性账本与架构决策
 
 Riffa 只支持 macOS arm64，不规划 Intel Mac、Windows 或 Linux 版本。因此不会实现
 Windows Registry、Explorer Shell 扩展、COM、Windows 专用版本资源，也不会实现
-Beyond Compare 的注册、试用绕过、许可证密钥或任何授权兼容逻辑。
+第三方软件的注册、试用绕过、许可证密钥或任何授权兼容逻辑。
