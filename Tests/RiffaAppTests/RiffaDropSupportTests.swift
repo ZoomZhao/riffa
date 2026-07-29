@@ -6,6 +6,111 @@ import Testing
 
 @Suite("Window-wide resource drops")
 struct RiffaDropSupportTests {
+    @Test("A two-file text comparison remains stable when its sides are swapped")
+    @MainActor
+    func twoFileTextComparisonCanSwapSides() async throws {
+        let fixture = try TextComparisonFixture()
+        let left = try fixture.file(named: "left.txt", contents: "left\n")
+        let right = try fixture.file(named: "right.txt", contents: "right\n")
+        defer { fixture.remove() }
+
+        let model = TextCompareModel()
+        model.openInitial([left, right])
+        try await waitForTextInputs(in: model)
+
+        model.swapSides()
+
+        #expect(model.leftURL == right.standardizedFileURL)
+        #expect(model.rightURL == left.standardizedFileURL)
+        #expect(model.leftDocument?.text == "right\n")
+        #expect(model.rightDocument?.text == "left\n")
+    }
+
+    @Test("A loaded text comparison can replace both dropped inputs")
+    @MainActor
+    func twoFileTextComparisonCanReplaceBothInputs() async throws {
+        let fixture = try TextComparisonFixture()
+        let initialLeft = try fixture.file(
+            named: "initial-left.txt",
+            contents: "initial left\n"
+        )
+        let initialRight = try fixture.file(
+            named: "initial-right.txt",
+            contents: "initial right\n"
+        )
+        let replacementLeft = try fixture.file(
+            named: "replacement-left.txt",
+            contents: "replacement left\n"
+        )
+        let replacementRight = try fixture.file(
+            named: "replacement-right.txt",
+            contents: "replacement right\n"
+        )
+        defer { fixture.remove() }
+
+        let model = TextCompareModel()
+        model.openInitial([initialLeft, initialRight])
+        try await waitForTextInputs(in: model)
+
+        model.replaceInput(with: replacementLeft, for: .left)
+        model.replaceInput(with: replacementRight, for: .right)
+        try await waitForTextInputs(
+            in: model,
+            leftURL: replacementLeft,
+            rightURL: replacementRight
+        )
+
+        #expect(model.leftDocument?.text == "replacement left\n")
+        #expect(model.rightDocument?.text == "replacement right\n")
+    }
+
+    @MainActor
+    private func waitForTextInputs(
+        in model: TextCompareModel,
+        leftURL: URL? = nil,
+        rightURL: URL? = nil
+    ) async throws {
+        for _ in 0..<100 {
+            let hasExpectedURLs = (leftURL == nil
+                || model.leftURL == leftURL?.standardizedFileURL)
+                && (rightURL == nil
+                    || model.rightURL == rightURL?.standardizedFileURL)
+            if hasExpectedURLs,
+               model.leftDocument != nil,
+               model.rightDocument != nil {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        Issue.record("Timed out waiting for both text inputs to load")
+    }
+
+    private struct TextComparisonFixture {
+        let root: URL
+
+        init() throws {
+            root = FileManager.default.temporaryDirectory
+                .appendingPathComponent(
+                    "RiffaDropSupportTests-\(UUID().uuidString)",
+                    isDirectory: true
+                )
+            try FileManager.default.createDirectory(
+                at: root,
+                withIntermediateDirectories: true
+            )
+        }
+
+        func file(named name: String, contents: String) throws -> URL {
+            let url = root.appendingPathComponent(name)
+            try Data(contents.utf8).write(to: url)
+            return url
+        }
+
+        func remove() {
+            try? FileManager.default.removeItem(at: root)
+        }
+    }
+
     @Test("The AppKit bridge covers the containing window and forwards its delegate")
     @MainActor
     func appKitBridgeInstallsWithoutDiscardingWindowDelegate() async {
