@@ -73,7 +73,9 @@ private final class VersionCompareModel: ObservableObject {
 
     func swapSides() {
         comparisonTask?.cancel()
-        (leftURL, rightURL) = (rightURL, leftURL)
+        let previousLeftURL = leftURL
+        leftURL = rightURL
+        rightURL = previousLeftURL
         if let result {
             self.result = VersionComparisonEngine().compare(
                 left: result.right,

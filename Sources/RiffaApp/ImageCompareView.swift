@@ -150,9 +150,15 @@ private final class ImageCompareModel: ObservableObject {
     }
 
     func swapSides() {
-        (leftURL, rightURL) = (rightURL, leftURL)
-        (leftImage, rightImage) = (rightImage, leftImage)
-        (leftBuffer, rightBuffer) = (rightBuffer, leftBuffer)
+        let previousLeftURL = leftURL
+        let previousLeftImage = leftImage
+        let previousLeftBuffer = leftBuffer
+        leftURL = rightURL
+        rightURL = previousLeftURL
+        leftImage = rightImage
+        rightImage = previousLeftImage
+        leftBuffer = rightBuffer
+        rightBuffer = previousLeftBuffer
         xOffset = -xOffset
         yOffset = -yOffset
         compareIfReady()

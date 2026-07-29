@@ -23,7 +23,7 @@ extension Notification.Name {
     )
 }
 
-struct SessionSaveRequest {
+struct SessionSaveRequest: Sendable {
     let kind: ComparisonSessionKind
     let urls: [URL]
     let options: [String: SessionOptionValue]
@@ -50,6 +50,17 @@ struct SessionSaveRequest {
              .pdfComparison, .officeComparison, .archiveComparison, .metadataComparison, .versionComparison,
              .mediaComparison: 2
         }
+    }
+
+    var historyIdentity: Data {
+        let identity = SessionHistoryIdentity(
+            kind: kind,
+            paths: urls.map { $0.standardizedFileURL.path },
+            options: options
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(identity)) ?? Data()
     }
 }
 
@@ -89,36 +100,7 @@ enum SessionSaveService {
             throw SessionSaveError.emptyName
         }
 
-        let resources = try standardizedURLs.enumerated().map { index, url in
-            let bookmarkData: Data
-            do {
-                bookmarkData = try url.bookmarkData(
-                    options: [.withSecurityScope],
-                    includingResourceValuesForKeys: nil,
-                    relativeTo: nil
-                )
-            } catch {
-                throw SessionSaveError.bookmarkCreationFailed(
-                    occurrence: index,
-                    path: url.path,
-                    reason: error.localizedDescription
-                )
-            }
-            guard !bookmarkData.isEmpty else {
-                throw SessionSaveError.bookmarkCreationFailed(
-                    occurrence: index,
-                    path: url.path,
-                    reason: RiffaLocalization.string(
-                        "macOS returned an empty security bookmark."
-                    )
-                )
-            }
-            return SessionResourceReference(
-                providerID: "local",
-                path: url.path,
-                bookmarkData: bookmarkData
-            )
-        }
+        let resources = try localResources(for: standardizedURLs)
 
         let now = Date()
         let session = ComparisonSession(
@@ -133,6 +115,51 @@ enum SessionSaveService {
         _ = try await SessionCatalogLocation.sharedStore.upsert(session)
         NotificationCenter.default.post(name: .riffaSessionCatalogDidChange, object: nil)
         return true
+    }
+
+    static func localResources(
+        for urls: [URL]
+    ) throws -> [SessionResourceReference] {
+        try urls.enumerated().map { index, url in
+            guard url.isFileURL else {
+                throw SessionSaveError.nonLocalURL(occurrence: index)
+            }
+            let standardized = url.standardizedFileURL
+            guard NSString(string: standardized.path).isAbsolutePath else {
+                throw SessionSaveError.relativePath(
+                    occurrence: index,
+                    path: standardized.path
+                )
+            }
+            let bookmarkData: Data
+            do {
+                bookmarkData = try standardized.bookmarkData(
+                    options: [.withSecurityScope],
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+            } catch {
+                throw SessionSaveError.bookmarkCreationFailed(
+                    occurrence: index,
+                    path: standardized.path,
+                    reason: error.localizedDescription
+                )
+            }
+            guard !bookmarkData.isEmpty else {
+                throw SessionSaveError.bookmarkCreationFailed(
+                    occurrence: index,
+                    path: standardized.path,
+                    reason: RiffaLocalization.string(
+                        "macOS returned an empty security bookmark."
+                    )
+                )
+            }
+            return SessionResourceReference(
+                providerID: "local",
+                path: standardized.path,
+                bookmarkData: bookmarkData
+            )
+        }
     }
 
     static func message(for error: any Error) -> String {
@@ -343,6 +370,9 @@ struct SessionSaveButton: View {
                 )
         )
         .disabled(!request.isComplete || isSaving)
+        .task(id: request.historyIdentity) {
+            await RecentComparisonHistoryRecorder.record(request)
+        }
     }
 
     private func beginSave() {
@@ -358,6 +388,12 @@ struct SessionSaveButton: View {
             }
         }
     }
+}
+
+private struct SessionHistoryIdentity: Encodable {
+    let kind: ComparisonSessionKind
+    let paths: [String]
+    let options: [String: SessionOptionValue]
 }
 
 private struct SaveMetadata {

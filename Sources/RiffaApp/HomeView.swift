@@ -1,3 +1,4 @@
+import RiffaCore
 import SwiftUI
 
 struct RiffaRootView: View {
@@ -8,6 +9,7 @@ struct RiffaRootView: View {
     @State private var pendingExternalURLs: [URL] = []
     @State private var externalOpenTask: Task<Void, Never>?
     @State private var externalOpenError: String?
+    @StateObject private var recentHistory = RecentComparisonHistoryModel()
 
     var body: some View {
         NavigationSplitView {
@@ -85,6 +87,16 @@ struct RiffaRootView: View {
                 self.externalRequest = nil
             }
         }
+        .task {
+            recentHistory.loadIfNeeded()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: .riffaRecentComparisonHistoryDidChange
+            )
+        ) { _ in
+            recentHistory.reload()
+        }
         .alert(
             "Could not open comparison",
             isPresented: Binding(
@@ -154,7 +166,13 @@ struct RiffaRootView: View {
             )
             .id(viewID(for: selection))
         } else {
-            HomeView(selection: $selection)
+            HomeView(
+                selection: $selection,
+                recentSessions: recentHistory.sessions,
+                isLoadingRecentSessions: recentHistory.isLoading,
+                recentSessionsError: recentHistory.errorMessage,
+                openRecentSession: openRecentSession
+            )
         }
     }
 
@@ -212,10 +230,22 @@ struct RiffaRootView: View {
         externalRequest = request
         selection = request.kind
     }
+
+    private func openRecentSession(_ session: ComparisonSession) {
+        do {
+            try comparisonOpenBroker.open(session) {}
+        } catch {
+            externalOpenError = error.localizedDescription
+        }
+    }
 }
 
 struct HomeView: View {
     @Binding var selection: SessionKind?
+    let recentSessions: [ComparisonSession]
+    let isLoadingRecentSessions: Bool
+    let recentSessionsError: String?
+    let openRecentSession: (ComparisonSession) -> Void
     @Environment(\.riffaTheme) private var theme
 
     private let comparisonKinds: [SessionKind] = [
@@ -264,6 +294,8 @@ struct HomeView: View {
                 }
                 .accessibilityElement(children: .combine)
 
+                recentSessionsSection
+
                 sessionSection(
                     eyebrow: "START A SESSION",
                     title: "Compare",
@@ -291,6 +323,113 @@ struct HomeView: View {
             .frame(maxWidth: 1120, alignment: .leading)
         }
         .background(theme.canvas)
+    }
+
+    private var recentSessionsSection: some View {
+        VStack(alignment: .leading, spacing: RiffaSpacing.md) {
+            VStack(alignment: .leading, spacing: RiffaSpacing.xxs) {
+                Text("RECENT SESSIONS")
+                    .riffaText(.eyebrow)
+                    .foregroundStyle(theme.inkTertiary)
+                Text("History")
+                    .riffaText(.cardTitle)
+                    .foregroundStyle(theme.ink)
+                Text("Completed local comparisons appear here automatically.")
+                    .riffaText(.bodySmall)
+                    .foregroundStyle(theme.inkSubtle)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+
+            RiffaPanel(
+                level: .one,
+                cornerRadius: RiffaRadius.lg,
+                padding: 0
+            ) {
+                if isLoadingRecentSessions && recentSessions.isEmpty {
+                    HStack(spacing: RiffaSpacing.xs) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Loading recent sessions…")
+                            .riffaText(.bodySmall)
+                            .foregroundStyle(theme.inkSubtle)
+                    }
+                    .padding(RiffaSpacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else if let recentSessionsError, recentSessions.isEmpty {
+                    Label {
+                        Text(verbatim: recentSessionsError)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle")
+                    }
+                    .riffaText(.bodySmall)
+                    .foregroundStyle(theme.inkSubtle)
+                    .padding(RiffaSpacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else if recentSessions.isEmpty {
+                    Label(
+                        "No recent sessions yet",
+                        systemImage: "clock.arrow.circlepath"
+                    )
+                    .riffaText(.bodySmall)
+                    .foregroundStyle(theme.inkSubtle)
+                    .padding(RiffaSpacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(
+                            Array(recentSessions.prefix(6).enumerated()),
+                            id: \.element.id
+                        ) { index, session in
+                            Button {
+                                openRecentSession(session)
+                            } label: {
+                                HStack(spacing: RiffaSpacing.sm) {
+                                    Image(systemName: session.kind.symbol)
+                                        .symbolRenderingMode(.monochrome)
+                                        .foregroundStyle(theme.accentHover)
+                                        .frame(width: 22)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(session.name)
+                                            .riffaText(.bodySmall)
+                                            .foregroundStyle(theme.ink)
+                                            .lineLimit(1)
+                                        Text(session.kind.displayNameKey)
+                                            .riffaText(.caption)
+                                            .foregroundStyle(theme.inkSubtle)
+                                    }
+
+                                    Spacer(minLength: RiffaSpacing.sm)
+
+                                    Text(
+                                        verbatim: session.updatedAt.formatted(
+                                            date: .abbreviated,
+                                            time: .shortened
+                                        )
+                                    )
+                                    .riffaText(.caption)
+                                    .foregroundStyle(theme.inkTertiary)
+
+                                    Image(systemName: "chevron.right")
+                                        .imageScale(.small)
+                                        .foregroundStyle(theme.inkTertiary)
+                                }
+                                .padding(.horizontal, RiffaSpacing.md)
+                                .frame(minHeight: 52)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Reopens this comparison")
+
+                            if index < min(recentSessions.count, 6) - 1 {
+                                RiffaHairline()
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder

@@ -304,11 +304,21 @@ final class TextCompareModel: ObservableObject {
     func swapSides() {
         invalidateAllLoads()
         stopAllFileChangeMonitoring()
-        (leftURL, rightURL) = (rightURL, leftURL)
-        (leftDocument, rightDocument) = (rightDocument, leftDocument)
-        (leftDecodedDocument, rightDecodedDocument) = (rightDecodedDocument, leftDecodedDocument)
-        (leftDraft, rightDraft) = (rightDraft, leftDraft)
-        (leftBackingURL, rightBackingURL) = (rightBackingURL, leftBackingURL)
+        let previousLeftURL = leftURL
+        let previousLeftDocument = leftDocument
+        let previousLeftDecodedDocument = leftDecodedDocument
+        let previousLeftDraft = leftDraft
+        let previousLeftBackingURL = leftBackingURL
+        leftURL = rightURL
+        rightURL = previousLeftURL
+        leftDocument = rightDocument
+        rightDocument = previousLeftDocument
+        leftDecodedDocument = rightDecodedDocument
+        rightDecodedDocument = previousLeftDecodedDocument
+        leftDraft = rightDraft
+        rightDraft = previousLeftDraft
+        leftBackingURL = rightBackingURL
+        rightBackingURL = previousLeftBackingURL
         let leftState = externalChangeStates[.left, default: .init()]
         externalChangeStates[.left] = externalChangeStates[.right, default: .init()]
         externalChangeStates[.right] = leftState

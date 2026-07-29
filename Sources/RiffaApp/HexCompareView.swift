@@ -105,7 +105,9 @@ private final class HexCompareModel: ObservableObject {
     }
 
     func swapSides() {
-        (leftURL, rightURL) = (rightURL, leftURL)
+        let previousLeftURL = leftURL
+        leftURL = rightURL
+        rightURL = previousLeftURL
         compareIfReady()
     }
 

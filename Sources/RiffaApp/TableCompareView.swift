@@ -275,15 +275,24 @@ private final class TableCompareModel: ObservableObject {
         // Draft arrays, encoding metadata, diagnostics, and dirty markers move
         // together, so swapping never silently discards an edit.
         cancelLoads()
-        (leftURL, rightURL) = (rightURL, leftURL)
-        (leftDocument, rightDocument) = (rightDocument, leftDocument)
-        (leftRows, rightRows) = (rightRows, leftRows)
-        (leftDiagnostics, rightDiagnostics) = (rightDiagnostics, leftDiagnostics)
-        (leftLineEnding, rightLineEnding) = (rightLineEnding, leftLineEnding)
-        (leftTerminatesLastRecord, rightTerminatesLastRecord) = (
-            rightTerminatesLastRecord,
-            leftTerminatesLastRecord
-        )
+        let previousLeftURL = leftURL
+        let previousLeftDocument = leftDocument
+        let previousLeftRows = leftRows
+        let previousLeftDiagnostics = leftDiagnostics
+        let previousLeftLineEnding = leftLineEnding
+        let previousLeftTerminatesLastRecord = leftTerminatesLastRecord
+        leftURL = rightURL
+        rightURL = previousLeftURL
+        leftDocument = rightDocument
+        rightDocument = previousLeftDocument
+        leftRows = rightRows
+        rightRows = previousLeftRows
+        leftDiagnostics = rightDiagnostics
+        rightDiagnostics = previousLeftDiagnostics
+        leftLineEnding = rightLineEnding
+        rightLineEnding = previousLeftLineEnding
+        leftTerminatesLastRecord = rightTerminatesLastRecord
+        rightTerminatesLastRecord = previousLeftTerminatesLastRecord
         dirtySides = Set(dirtySides.map(\.opposite))
         refreshDraftToken(for: .left)
         refreshDraftToken(for: .right)
