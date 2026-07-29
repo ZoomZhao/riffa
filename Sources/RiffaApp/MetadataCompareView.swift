@@ -84,7 +84,9 @@ private final class MetadataCompareModel: ObservableObject {
     }
 
     func swapSides() {
-        (leftURL, rightURL) = (rightURL, leftURL)
+        let previousLeftURL = leftURL
+        leftURL = rightURL
+        rightURL = previousLeftURL
         if let result {
             self.result = LocalMetadataComparisonResult(
                 left: result.right,

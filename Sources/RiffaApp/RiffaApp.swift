@@ -57,9 +57,6 @@ struct RiffaApp: App {
         .defaultSize(width: 1040, height: 700)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
-        .commands {
-            RiffaSessionCommands()
-        }
 
         WindowGroup(
             Text(verbatim: sceneTitle("Workspace")),
@@ -86,9 +83,6 @@ struct RiffaApp: App {
         .defaultSize(width: 1180, height: 760)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
-        .commands {
-            RiffaSessionCommands()
-        }
 
         WindowGroup(
             Text(verbatim: sceneTitle("Resource Tools")),
@@ -104,9 +98,6 @@ struct RiffaApp: App {
         .defaultSize(width: 1120, height: 720)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
-        .commands {
-            RiffaSessionCommands()
-        }
 
         Settings {
             RiffaSettingsView()

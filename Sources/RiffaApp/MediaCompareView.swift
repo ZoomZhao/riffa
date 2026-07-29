@@ -132,8 +132,12 @@ private final class MediaCompareModel: ObservableObject {
 
     func swapSides() {
         cancelAllLoads()
-        (leftURL, rightURL) = (rightURL, leftURL)
-        (leftFields, rightFields) = (rightFields, leftFields)
+        let previousLeftURL = leftURL
+        let previousLeftFields = leftFields
+        leftURL = rightURL
+        rightURL = previousLeftURL
+        leftFields = rightFields
+        rightFields = previousLeftFields
         compareIfReady()
     }
 

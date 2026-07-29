@@ -311,7 +311,9 @@ private final class PDFCompareModel: ObservableObject {
     }
 
     func swapSides() {
-        (leftURL, rightURL) = (rightURL, leftURL)
+        let previousLeftURL = leftURL
+        leftURL = rightURL
+        rightURL = previousLeftURL
         compareIfReady()
     }
 

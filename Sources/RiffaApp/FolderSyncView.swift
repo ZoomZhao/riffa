@@ -83,7 +83,9 @@ private final class FolderSyncModel: ObservableObject {
         cancelRenameDetection(clearResults: true)
         nodes = []
         plan = nil
-        (leftURL, rightURL) = (rightURL, leftURL)
+        let previousLeftURL = leftURL
+        leftURL = rightURL
+        rightURL = previousLeftURL
         switch mode {
         case .updateLeft: mode = .updateRight
         case .updateRight: mode = .updateLeft
