@@ -53,6 +53,8 @@
 - [x] `riffa` CLI：`text`、`folder`、`sync`、`hex`、`pdf`、`metadata`、`version`、`office`、
   `archive-compare`、`merge`、`table`、`patch`、`patch-apply`；
   `snapshot-create`、`snapshot-compare`、`snapshot-diff`、`archive-list`、`archive-read`；
+  `open LEFT RIGHT` 与 `open BASE LEFT RIGHT` 可唤起桌面比较/合并窗口，裸两/三路径形式兼容
+  Git 外部工具；
   补丁应用只写标准输出，比较命令支持 JSON 与 0/1/2 退出码，归档读取不会跟随链接。`sync`
   默认只读计划；apply 要求独立 backup、方向复述、高风险额外门控，并接入正式 journal 执行器。
 - [x] Unified Patch：从文本 diff 生成、严格解析、上下文校验及原子应用，并已接入桌面

@@ -125,6 +125,8 @@ Riffa（读作 “RIF-fa”，两个音节）是一款面向 Apple Silicon Mac �
 - `riffa` CLI 支持 `text`、`folder`、`sync`、`hex`、`pdf`、`metadata`、`version`、`merge`、`table`、
   `office`、`archive-compare`、`patch`、`patch-apply`，以及 `snapshot-create`、
   `snapshot-compare`、`snapshot-diff`、`archive-list`、`archive-read`。
+  `riffa open LEFT RIGHT`（或直接执行 `riffa LEFT RIGHT`）会唤起桌面 App 打开双向比较；传入
+  三个路径会打开三方合并。这种裸路径形式可直接配置给 SourceGit 等 Git 客户端作为外部比较工具。
   比较命令采用 0（相同）/1（不同或冲突）/2（错误）退出码；补丁应用默认只写标准输出，
   归档读取只输出一个经校验的普通成员且不会跟随链接。
   `sync` 默认只输出相对路径的 dry-run 计划；落盘必须同时提供 `--apply`、独立 `--backup` 和

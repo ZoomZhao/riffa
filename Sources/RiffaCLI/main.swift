@@ -1,3 +1,4 @@
+import AppKit
 import Darwin
 import Foundation
 import RiffaCore
@@ -68,6 +69,24 @@ struct RiffaCommandLine {
         case "--version", "-V":
             print("riffa \(RiffaCore.version)")
             return 0
+        case "--gui":
+            let parsed = try parseOpenCommand(
+                arguments: Array(arguments.dropFirst())
+            )
+            if parsed.requestsHelp {
+                printOpenHelp()
+                return 0
+            }
+            return try await runOpen(parsed)
+        case "open", "gui":
+            let parsed = try parseOpenCommand(
+                arguments: Array(arguments.dropFirst())
+            )
+            if parsed.requestsHelp {
+                printOpenHelp()
+                return 0
+            }
+            return try await runOpen(parsed)
         case "text":
             let parsed = try parseCommand(
                 arguments: Array(arguments.dropFirst()),
@@ -249,8 +268,47 @@ struct RiffaCommandLine {
             }
             return try runArchiveRead(parsed)
         default:
+            // A bare pair/triple of paths is intentionally accepted for
+            // external diff/merge integrations. Git-compatible tools such as
+            // SourceGit can then configure `riffa "$LOCAL" "$REMOTE"`
+            // without needing a Riffa-specific subcommand.
+            if arguments.count >= 2, arguments.count <= 3,
+               !first.hasPrefix("-") {
+                let parsed = try parseOpenCommand(arguments: arguments)
+                return try await runOpen(parsed)
+            }
             throw CLIError("unknown command '\(first)'")
         }
+    }
+
+    private static func parseOpenCommand(
+        arguments: [String]
+    ) throws -> ParsedOpenCommand {
+        var paths: [String] = []
+        var requestsHelp = false
+        var acceptsOptions = true
+
+        for argument in arguments {
+            if acceptsOptions, argument == "--" {
+                acceptsOptions = false
+            } else if acceptsOptions, argument == "--help" || argument == "-h" {
+                requestsHelp = true
+            } else if acceptsOptions, argument.hasPrefix("-") {
+                throw CLIError("unknown option '\(argument)'")
+            } else {
+                paths.append(argument)
+            }
+        }
+
+        if requestsHelp {
+            return ParsedOpenCommand(paths: [], requestsHelp: true)
+        }
+        guard paths.count == 2 || paths.count == 3 else {
+            throw CLIError(
+                "expected two comparison paths or three merge paths; received \(paths.count)"
+            )
+        }
+        return ParsedOpenCommand(paths: paths, requestsHelp: false)
     }
 
     private static func parseMergeCommand(arguments: [String]) throws -> ParsedMergeCommand {
@@ -605,6 +663,56 @@ struct RiffaCommandLine {
         }
 
         return result.hasDifferences ? 1 : 0
+    }
+
+    private static func runOpen(_ command: ParsedOpenCommand) async throws -> Int32 {
+        let urls = command.paths.map(fileURL(for:))
+        guard let applicationURL = riffaApplicationURL() else {
+            throw CLIError(
+                "could not find Riffa.app; install Riffa.app or pass the CLI from the Riffa distribution",
+                showsUsageHint: false
+            )
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        do {
+            _ = try await NSWorkspace.shared.open(
+                urls,
+                withApplicationAt: applicationURL,
+                configuration: configuration
+            )
+        } catch {
+            throw CLIError(
+                "could not open Riffa.app: \(error.localizedDescription)",
+                showsUsageHint: false
+            )
+        }
+        return 0
+    }
+
+    private static func riffaApplicationURL() -> URL? {
+        let workspace = NSWorkspace.shared
+        if let url = workspace.urlForApplication(
+            withBundleIdentifier: "dev.riffa.Riffa"
+        ) {
+            return url
+        }
+
+        let executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+            .standardizedFileURL
+        let siblingURL = executableURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("Riffa.app", isDirectory: true)
+        if FileManager.default.isReadableFile(atPath: siblingURL.path) {
+            return siblingURL
+        }
+
+        let applicationsURL = URL(fileURLWithPath: "/Applications/Riffa.app")
+        if FileManager.default.isReadableFile(atPath: applicationsURL.path) {
+            return applicationsURL
+        }
+        return nil
     }
 
     private static func runFolder(_ command: ParsedFolderCommand) async throws -> Int32 {
@@ -1613,6 +1721,10 @@ struct RiffaCommandLine {
             Riffa \(RiffaCore.version) — compare and merge files and folders
 
             USAGE
+              riffa open LEFT RIGHT
+              riffa open BASE LEFT RIGHT
+              riffa LEFT RIGHT
+              riffa BASE LEFT RIGHT
               riffa text LEFT RIGHT [--ignore-case] [--ignore-whitespace] [--strict-line-endings] [--json]
               riffa folder LEFT RIGHT [--contents] [--ignore-mtime] [--json]
               riffa sync LEFT RIGHT --mode MODE [--json]
@@ -1635,9 +1747,24 @@ struct RiffaCommandLine {
               riffa --version
 
             EXIT STATUS
-              0  Inputs are the same, or an apply completed successfully
+              0  Riffa was launched, inputs are the same, or an apply completed successfully
               1  A read-only command found actionable differences
               2  Invalid arguments, a blocked plan, or an operation error
+            """
+        )
+    }
+
+    private static func printOpenHelp() {
+        print(
+            """
+            USAGE
+              riffa open LEFT RIGHT
+              riffa open BASE LEFT RIGHT
+              riffa LEFT RIGHT
+              riffa BASE LEFT RIGHT
+
+            Open a two-way comparison or three-way merge in Riffa.app.
+            The bare-path form is intended for Git external diff/merge tools.
             """
         )
     }
@@ -2035,6 +2162,11 @@ private struct ParsedCommand: Sendable {
     let leftPath: String
     let rightPath: String
     let options: Set<String>
+    let requestsHelp: Bool
+}
+
+private struct ParsedOpenCommand: Sendable {
+    let paths: [String]
     let requestsHelp: Bool
 }
 

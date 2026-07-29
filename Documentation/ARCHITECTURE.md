@@ -216,6 +216,12 @@ hunk、预览、网络与最多 16 MiB 的有界 HTML 报告。结果只保存�
 模式还必须显式 `--allow-high-risk`。SIGINT/SIGTERM 会转为协作取消，让执行器走既有回滚路径。
 当前 CLI 不启用重命名检测，也没有计划文件、定时任务或稳定的跨版本自动化 API。
 
+CLI 另提供 `riffa open LEFT RIGHT` 与 `riffa open BASE LEFT RIGHT`，用于把路径交给桌面 App
+打开双向比较或三方合并；省略 `open` 子命令、直接传入两或三个路径时行为相同，方便 SourceGit
+等 Git 客户端把 `riffa "$LOCAL" "$REMOTE"` 配置为外部工具。CLI 通过 Launch Services
+定位已安装的 `Riffa.app`，App 的 open-files 事件再复用 `ComparisonOpenBroker` 的资源分类、
+security-scoped 注册和窗口唤起流程，不在 CLI 内复制比较逻辑。
+
 ## 阶段门槛
 
 1. **基础切片**：本地文本/文件夹比较、CLI、SwiftUI、测试与打包。

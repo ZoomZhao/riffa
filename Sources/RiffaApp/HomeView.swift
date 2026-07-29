@@ -177,6 +177,12 @@ struct RiffaRootView: View {
     }
 
     private func enqueueExternalURL(_ url: URL) {
+        // Local document open events are handled in
+        // RiffaApplicationDelegate.application(_:open:). Keeping them out of
+        // this URL-router path avoids opening the same Launch Services event
+        // twice when SwiftUI also forwards it to onOpenURL.
+        guard !url.isFileURL else { return }
+
         // Preserve a fourth URL as an overflow sentinel so a multi-item Finder
         // open reports the unsupported count instead of silently discarding an
         // input. Additional events in the same debounce window cannot change
