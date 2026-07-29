@@ -136,6 +136,31 @@ struct RiffaDropSupportTests {
         )
     }
 
+    @Test("A precise target delegates multiple resources to the window coordinator")
+    func multipleResourcesUseWindowCoordinator() throws {
+        let left = URL(fileURLWithPath: "/tmp/left.txt")
+        let right = URL(fileURLWithPath: "/tmp/right.txt")
+
+        #expect(
+            try RiffaResourceDropRouting.route(
+                [left, right],
+                hasWindowCoordinator: true
+            ) == .coordinated([left, right])
+        )
+        #expect(
+            try RiffaResourceDropRouting.route(
+                [left],
+                hasWindowCoordinator: true
+            ) == .local(left)
+        )
+        #expect(throws: RiffaDropError.self) {
+            try RiffaResourceDropRouting.route(
+                [left, right],
+                hasWindowCoordinator: false
+            )
+        }
+    }
+
     @Test("A complete three-way group preserves Base, Left, Right order")
     func threeWayGroupPreservesOrder() throws {
         #expect(

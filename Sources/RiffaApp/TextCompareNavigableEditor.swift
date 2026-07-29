@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 struct TextEditorLineNavigationRequest: Equatable {
@@ -15,8 +16,10 @@ struct TextCompareNavigableEditor: NSViewRepresentable {
     @Binding var text: String
     @Binding var selectedLineNumber: Int?
     let navigationRequest: TextEditorLineNavigationRequest?
+    let syntaxLanguage: TextSyntaxLanguage?
     let editorAccessibilityLabel: String
     @Environment(\.riffaTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let maximumIndexedLineCount = 500_000
 
@@ -80,6 +83,7 @@ struct TextCompareNavigableEditor: NSViewRepresentable {
             textView.setSelectedRange(NSRange(location: safeLocation, length: safeLength))
             context.coordinator.rebuildLineIndex(for: textView.string)
         }
+        context.coordinator.applySyntaxHighlightingIfNeeded(to: textView)
         textView.setAccessibilityLabel(editorAccessibilityLabel)
 
         if let request = navigationRequest,
@@ -117,6 +121,12 @@ struct TextCompareNavigableEditor: NSViewRepresentable {
         private weak var textView: NSTextView?
         private var lineStartUTF16Offsets: [Int] = []
         private var lineIndexIsComplete = true
+        private var highlightingTask: Task<Void, Never>?
+        private var lastHighlightedText: String?
+        private var lastHighlightedLanguage: TextSyntaxLanguage?
+        private var lastHighlightedPalette: RiffaThemePalette?
+        private var lastHighlightedContrast = false
+        private var isHighlightScheduled = false
 
         init(parent: TextCompareNavigableEditor) {
             self.parent = parent
@@ -125,6 +135,7 @@ struct TextCompareNavigableEditor: NSViewRepresentable {
         func install(textView: NSTextView) {
             self.textView = textView
             rebuildLineIndex(for: textView.string)
+            applySyntaxHighlightingIfNeeded(to: textView)
         }
 
         func textDidChange(_ notification: Notification) {
@@ -133,6 +144,7 @@ struct TextCompareNavigableEditor: NSViewRepresentable {
             rebuildLineIndex(for: textView.string)
             parent.text = textView.string
             publishSelection(from: textView)
+            scheduleSyntaxHighlighting(for: textView)
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
@@ -174,8 +186,116 @@ struct TextCompareNavigableEditor: NSViewRepresentable {
             else { return }
             let location = lineStartUTF16Offsets[lineNumber - 1]
             let range = NSRange(location: location, length: 0)
-            textView.scrollRangeToVisible(range)
+            smoothlyCenter(range: range, in: textView)
             textView.showFindIndicator(for: range)
+        }
+
+        func applySyntaxHighlightingIfNeeded(to textView: NSTextView) {
+            let theme = parent.theme
+            let textChanged = lastHighlightedText != textView.string
+            let styleChanged = lastHighlightedLanguage != parent.syntaxLanguage
+                || lastHighlightedPalette != theme.palette
+                || lastHighlightedContrast != theme.usesIncreasedContrast
+            guard textChanged || styleChanged else { return }
+            guard !isHighlightScheduled || styleChanged else { return }
+            applySyntaxHighlighting(to: textView)
+        }
+
+        private func scheduleSyntaxHighlighting(for textView: NSTextView) {
+            highlightingTask?.cancel()
+            isHighlightScheduled = true
+            highlightingTask = Task { @MainActor [weak self, weak textView] in
+                try? await Task.sleep(for: .milliseconds(120))
+                guard !Task.isCancelled, let self, let textView else { return }
+                self.isHighlightScheduled = false
+                self.applySyntaxHighlightingIfNeeded(to: textView)
+            }
+        }
+
+        private func applySyntaxHighlighting(to textView: NSTextView) {
+            let value = textView.string
+            let theme = parent.theme
+            let tokens = TextSyntaxHighlighter.tokens(
+                in: value,
+                language: parent.syntaxLanguage
+            )
+            let fullRange = NSRange(location: 0, length: (value as NSString).length)
+            let font = NSFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)
+            guard let textStorage = textView.textStorage else { return }
+
+            isInstallingModelText = true
+            textStorage.beginEditing()
+            textStorage.setAttributes(
+                [
+                    .font: font,
+                    .foregroundColor: theme.nsInk,
+                ],
+                range: fullRange
+            )
+            for token in tokens where NSMaxRange(token.range) <= fullRange.length {
+                textStorage.addAttribute(
+                    .foregroundColor,
+                    value: theme.nsSyntaxColor(for: token.kind),
+                    range: token.range
+                )
+            }
+            textStorage.endEditing()
+            textView.typingAttributes = [
+                .font: font,
+                .foregroundColor: theme.nsInk,
+            ]
+            isInstallingModelText = false
+
+            lastHighlightedText = value
+            lastHighlightedLanguage = parent.syntaxLanguage
+            lastHighlightedPalette = theme.palette
+            lastHighlightedContrast = theme.usesIncreasedContrast
+            isHighlightScheduled = false
+        }
+
+        private func smoothlyCenter(range: NSRange, in textView: NSTextView) {
+            guard let scrollView = textView.enclosingScrollView,
+                  let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer
+            else {
+                textView.scrollRangeToVisible(range)
+                return
+            }
+
+            layoutManager.ensureLayout(for: textContainer)
+            let glyphRange = layoutManager.glyphRange(
+                forCharacterRange: range,
+                actualCharacterRange: nil
+            )
+            var targetRect = layoutManager.boundingRect(
+                forGlyphRange: glyphRange,
+                in: textContainer
+            )
+            targetRect.origin.x += textView.textContainerInset.width
+            targetRect.origin.y += textView.textContainerInset.height
+
+            let clipView = scrollView.contentView
+            let visibleHeight = clipView.bounds.height
+            let maximumY = max(0, textView.bounds.height - visibleHeight)
+            let targetY = min(
+                maximumY,
+                max(0, targetRect.midY - (visibleHeight / 2))
+            )
+            let targetOrigin = NSPoint(x: clipView.bounds.origin.x, y: targetY)
+
+            if parent.reduceMotion {
+                clipView.scroll(to: targetOrigin)
+                scrollView.reflectScrolledClipView(clipView)
+                return
+            }
+
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.24
+                context.timingFunction = CAMediaTimingFunction(
+                    name: .easeInEaseOut
+                )
+                clipView.animator().setBoundsOrigin(targetOrigin)
+            }
         }
 
         private func publishSelection(from textView: NSTextView) {
