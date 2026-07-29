@@ -33,16 +33,42 @@ final class RiffaApplicationRuntime {
 /// invocation that cold-launches the application.
 @MainActor
 final class RiffaApplicationDelegate: NSObject, NSApplicationDelegate {
+    private let runtime: RiffaApplicationRuntime
     private let serviceProvider: RiffaFinderServiceProvider
 
     override init() {
-        serviceProvider = RiffaApplicationRuntime.shared.finderServiceProvider
+        let runtime = RiffaApplicationRuntime.shared
+        self.runtime = runtime
+        serviceProvider = runtime.finderServiceProvider
         super.init()
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         _ = notification
         NSApplication.shared.servicesProvider = serviceProvider
+    }
+
+    /// Routes files opened by `open -a Riffa ...` (and by the CLI handoff)
+    /// through the same classifier and security-scoped access path as Finder
+    /// Services and drag-and-drop.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        _ = application
+        guard !urls.isEmpty else { return }
+        do {
+            let request = try runtime.comparisonOpenBroker.prepareExternalOpen(
+                urls: urls
+            )
+            runtime.comparisonOpenBroker.publishExternalOpen(request) {
+                self.runtime.comparisonWindowPresenter.revealComparisonWindow()
+            }
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = RiffaLocalization.string("Could not open comparison")
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: RiffaLocalization.string("OK"))
+            alert.runModal()
+        }
     }
 }
 
