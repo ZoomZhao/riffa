@@ -75,6 +75,7 @@ struct RiffaDropZone {
 struct RiffaWindowDropRegistrar {
     let install: @MainActor (UUID, [RiffaDropZone]) -> Void
     let remove: @MainActor (UUID) -> Void
+    let handleGroupDrop: @MainActor ([URL]) -> Bool
 }
 
 private struct RiffaWindowDropRegistrarKey: EnvironmentKey {
@@ -128,6 +129,24 @@ enum RiffaDropAssignment {
             )
         }
         return Array(roles.indices)
+    }
+}
+
+enum RiffaResourceDropRouting: Equatable {
+    case local(URL)
+    case coordinated([URL])
+
+    static func route(
+        _ urls: [URL],
+        hasWindowCoordinator: Bool
+    ) throws -> RiffaResourceDropRouting {
+        if urls.count == 1, let url = urls.first {
+            return .local(url)
+        }
+        if urls.count > 1, hasWindowCoordinator {
+            return .coordinated(urls)
+        }
+        throw RiffaDropError.requiresExactlyOneResource
     }
 }
 
@@ -619,17 +638,12 @@ private struct RiffaCoordinatedWindowDropModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .environment(
-                \.riffaWindowDropRegistrar,
-                RiffaWindowDropRegistrar(
-                    install: install,
-                    remove: remove
-                )
-            )
             .modifier(
                 RiffaRootWindowDropModifier(
                     zones: activeZones,
-                    fallback: fallback
+                    fallback: fallback,
+                    install: install,
+                    remove: remove
                 )
             )
     }
@@ -649,6 +663,8 @@ private struct RiffaCoordinatedWindowDropModifier: ViewModifier {
 private struct RiffaRootWindowDropModifier: ViewModifier {
     let zones: [RiffaDropZone]
     let fallback: @MainActor ([URL]) throws -> Void
+    let install: @MainActor (UUID, [RiffaDropZone]) -> Void
+    let remove: @MainActor (UUID) -> Void
 
     @EnvironmentObject private var accessRegistry: SecurityScopedAccessRegistry
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -662,6 +678,23 @@ private struct RiffaRootWindowDropModifier: ViewModifier {
                     .frame(
                         width: geometry.size.width,
                         height: geometry.size.height
+                    )
+                    .environment(
+                        \.riffaWindowDropRegistrar,
+                        RiffaWindowDropRegistrar(
+                            install: install,
+                            remove: remove,
+                            handleGroupDrop: { urls in
+                                handle(
+                                    urls: urls,
+                                    location: CGPoint(
+                                        x: geometry.size.width / 2,
+                                        y: geometry.size.height / 2
+                                    ),
+                                    size: geometry.size
+                                )
+                            }
+                        )
                     )
 
                 if isTargeted {
@@ -910,6 +943,7 @@ private struct RiffaResourceDropTargetModifier: ViewModifier {
 
     @EnvironmentObject private var accessRegistry: SecurityScopedAccessRegistry
     @Environment(\.riffaTheme) private var theme
+    @Environment(\.riffaWindowDropRegistrar) private var windowDropRegistrar
     @State private var isTargeted = false
     @State private var errorMessage: String?
 
@@ -971,17 +1005,26 @@ private struct RiffaResourceDropTargetModifier: ViewModifier {
     private func handle(_ urls: [URL]) -> Bool {
         isTargeted = false
         do {
-            guard urls.count == 1, let url = urls.first else {
-                throw RiffaDropError.requiresExactlyOneResource
+            switch try RiffaResourceDropRouting.route(
+                urls,
+                hasWindowCoordinator: windowDropRegistrar != nil
+            ) {
+            case let .coordinated(urls):
+                guard let windowDropRegistrar else {
+                    throw RiffaDropError.requiresExactlyOneResource
+                }
+                errorMessage = nil
+                return windowDropRegistrar.handleGroupDrop(urls)
+            case let .local(url):
+                try RiffaDroppedResourceValidator.validateLocalFileURL(url)
+                let registered = try accessRegistry.registerIncomingURL(url)
+                try RiffaDroppedResourceValidator.validate(
+                    registered,
+                    as: zone.acceptedKind
+                )
+                zone.onDrop(registered)
+                errorMessage = nil
             }
-            try RiffaDroppedResourceValidator.validateLocalFileURL(url)
-            let registered = try accessRegistry.registerIncomingURL(url)
-            try RiffaDroppedResourceValidator.validate(
-                registered,
-                as: zone.acceptedKind
-            )
-            zone.onDrop(registered)
-            errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
         }
