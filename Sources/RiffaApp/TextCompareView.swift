@@ -4,6 +4,20 @@ import RiffaCore
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum TextComparePaneLayout {
+    static let minimumPaneWidth: CGFloat = 280
+    static let overviewWidth: CGFloat = 30
+    static let dividerWidth: CGFloat = 1
+
+    static func contentWidth(for viewportWidth: CGFloat) -> CGFloat {
+        max(viewportWidth, (minimumPaneWidth * 2) + dividerWidth)
+    }
+
+    static func paneWidth(for viewportWidth: CGFloat) -> CGFloat {
+        (contentWidth(for: viewportWidth) - dividerWidth) / 2
+    }
+}
+
 @MainActor
 final class TextCompareModel: ObservableObject {
     enum Side: String, CaseIterable, Equatable, Hashable, Identifiable, Sendable {
@@ -1408,6 +1422,7 @@ struct TextCompareView: View {
     @State private var showFind = false
     @FocusState private var searchFieldFocused: Bool
     @Environment(\.riffaTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let initialURLs: [URL]
     private let initialOptions: [String: String]
 
@@ -1804,6 +1819,7 @@ struct TextCompareView: View {
             ) {
                 model.replaceInput(with: $0, for: .left)
             }
+            .frame(maxWidth: .infinity)
 
             Button {
                 model.swapSides()
@@ -1828,6 +1844,7 @@ struct TextCompareView: View {
             ) {
                 model.replaceInput(with: $0, for: .right)
             }
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -1942,47 +1959,79 @@ struct TextCompareView: View {
     @ViewBuilder
     private func diffContent(_ result: TextDiffResult) -> some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                paneHeading("LEFT", systemImage: "arrow.left", url: model.leftURL)
-                    .frame(maxWidth: .infinity)
-                Divider()
-                paneHeading("RIGHT", systemImage: "arrow.right", url: model.rightURL)
-                    .frame(maxWidth: .infinity)
-            }
+            comparisonPaneHeadings(
+                leftTitle: "LEFT",
+                rightTitle: "RIGHT"
+            )
             .frame(height: 34)
             .background(theme.surface(.one))
 
             Divider()
 
             HStack(spacing: 0) {
-                ScrollViewReader { proxy in
-                    ScrollView([.vertical, .horizontal]) {
-                        LazyVStack(spacing: 0) {
-                            ForEach(result.alignedLines, id: \.offset) { line in
-                                TextDiffRow(
-                                    line: line,
-                                    isSearchMatch: model.isSearchMatch(line),
-                                    leftBookmarked: line.left.map {
-                                        model.isBookmarked(side: .left, lineNumber: $0.lineNumber)
-                                    } ?? false,
-                                    rightBookmarked: line.right.map {
-                                        model.isBookmarked(side: .right, lineNumber: $0.lineNumber)
-                                    } ?? false,
-                                    toggleLeftBookmark: line.left.map { value in
-                                        { model.toggleBookmark(side: .left, lineNumber: value.lineNumber) }
-                                    },
-                                    toggleRightBookmark: line.right.map { value in
-                                        { model.toggleBookmark(side: .right, lineNumber: value.lineNumber) }
-                                    }
-                                )
-                                .id(line.offset)
+                GeometryReader { geometry in
+                    let contentWidth = TextComparePaneLayout.contentWidth(
+                        for: geometry.size.width
+                    )
+                    let paneWidth = TextComparePaneLayout.paneWidth(
+                        for: geometry.size.width
+                    )
+
+                    ScrollViewReader { proxy in
+                        ScrollView([.vertical, .horizontal]) {
+                            LazyVStack(spacing: 0) {
+                                ForEach(result.alignedLines, id: \.offset) { line in
+                                    TextDiffRow(
+                                        line: line,
+                                        paneWidth: paneWidth,
+                                        leftSyntaxLanguage: TextSyntaxLanguage.detect(
+                                            url: model.leftURL
+                                        ),
+                                        rightSyntaxLanguage: TextSyntaxLanguage.detect(
+                                            url: model.rightURL
+                                        ),
+                                        isSearchMatch: model.isSearchMatch(line),
+                                        leftBookmarked: line.left.map {
+                                            model.isBookmarked(
+                                                side: .left,
+                                                lineNumber: $0.lineNumber
+                                            )
+                                        } ?? false,
+                                        rightBookmarked: line.right.map {
+                                            model.isBookmarked(
+                                                side: .right,
+                                                lineNumber: $0.lineNumber
+                                            )
+                                        } ?? false,
+                                        toggleLeftBookmark: line.left.map { value in
+                                            {
+                                                model.toggleBookmark(
+                                                    side: .left,
+                                                    lineNumber: value.lineNumber
+                                                )
+                                            }
+                                        },
+                                        toggleRightBookmark: line.right.map { value in
+                                            {
+                                                model.toggleBookmark(
+                                                    side: .right,
+                                                    lineNumber: value.lineNumber
+                                                )
+                                            }
+                                        }
+                                    )
+                                    .id(line.offset)
+                                }
                             }
+                            .frame(width: contentWidth, alignment: .leading)
                         }
-                    }
-                    .onChange(of: model.navigationRequest) { _, request in
-                        guard let request else { return }
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            proxy.scrollTo(request.alignedOffset, anchor: .center)
+                        .onChange(of: model.navigationRequest) { _, request in
+                            guard let request else { return }
+                            withAnimation(
+                                reduceMotion ? nil : .smooth(duration: 0.24)
+                            ) {
+                                proxy.scrollTo(request.alignedOffset, anchor: .center)
+                            }
                         }
                     }
                 }
@@ -2002,39 +2051,31 @@ struct TextCompareView: View {
 
     private func editorContent(_ result: TextDiffResult) -> some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                paneHeading(
-                    "LEFT — EDITING IN MEMORY",
-                    systemImage: "arrow.left",
-                    url: model.leftURL
-                )
-                    .frame(maxWidth: .infinity)
-                Divider()
-                paneHeading(
-                    "RIGHT — EDITING IN MEMORY",
-                    systemImage: "arrow.right",
-                    url: model.rightURL
-                )
-                    .frame(maxWidth: .infinity)
-            }
+            comparisonPaneHeadings(
+                leftTitle: "LEFT — EDITING IN MEMORY",
+                rightTitle: "RIGHT — EDITING IN MEMORY"
+            )
             .frame(height: 34)
             .background(theme.surface(.one))
             Divider()
             HStack(spacing: 0) {
-                HSplitView {
-                    TextCompareNavigableEditor(
-                        text: $model.leftDraft,
-                        selectedLineNumber: $model.leftSelectedLineNumber,
-                        navigationRequest: editorNavigationRequest(for: .left),
-                        editorAccessibilityLabel: "Editable left text"
-                    )
-                    TextCompareNavigableEditor(
-                        text: $model.rightDraft,
-                        selectedLineNumber: $model.rightSelectedLineNumber,
-                        navigationRequest: editorNavigationRequest(for: .right),
-                        editorAccessibilityLabel: "Editable right text"
-                    )
-                }
+                TextCompareNavigableEditor(
+                    text: $model.leftDraft,
+                    selectedLineNumber: $model.leftSelectedLineNumber,
+                    navigationRequest: editorNavigationRequest(for: .left),
+                    syntaxLanguage: TextSyntaxLanguage.detect(url: model.leftURL),
+                    editorAccessibilityLabel: "Editable left text"
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Divider()
+                TextCompareNavigableEditor(
+                    text: $model.rightDraft,
+                    selectedLineNumber: $model.rightSelectedLineNumber,
+                    navigationRequest: editorNavigationRequest(for: .right),
+                    syntaxLanguage: TextSyntaxLanguage.detect(url: model.rightURL),
+                    editorAccessibilityLabel: "Editable right text"
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 Divider()
                 TextDifferenceOverviewView(
                     overview: model.diffOverview,
@@ -2101,6 +2142,31 @@ struct TextCompareView: View {
         .padding(.horizontal, 12)
     }
 
+    private func comparisonPaneHeadings(
+        leftTitle: String,
+        rightTitle: String
+    ) -> some View {
+        HStack(spacing: 0) {
+            paneHeading(
+                leftTitle,
+                systemImage: "arrow.left",
+                url: model.leftURL
+            )
+            .frame(maxWidth: .infinity)
+            Divider()
+            paneHeading(
+                rightTitle,
+                systemImage: "arrow.right",
+                url: model.rightURL
+            )
+            .frame(maxWidth: .infinity)
+            Divider()
+            Color.clear
+                .frame(width: TextComparePaneLayout.overviewWidth)
+                .accessibilityHidden(true)
+        }
+    }
+
     private func statisticsBar(_ result: TextDiffResult) -> some View {
         HStack(spacing: 14) {
             DifferenceBadge(
@@ -2132,6 +2198,9 @@ struct TextCompareView: View {
 
 private struct TextDiffRow: View {
     let line: AlignedDiffLine
+    let paneWidth: CGFloat
+    let leftSyntaxLanguage: TextSyntaxLanguage?
+    let rightSyntaxLanguage: TextSyntaxLanguage?
     let isSearchMatch: Bool
     let leftBookmarked: Bool
     let rightBookmarked: Bool
@@ -2147,19 +2216,21 @@ private struct TextDiffRow: View {
                 value: line.left,
                 color: leftColor,
                 sideName: RiffaLocalization.string("Left").lowercased(),
+                syntaxLanguage: leftSyntaxLanguage,
                 isBookmarked: leftBookmarked,
                 toggleBookmark: toggleLeftBookmark
             )
-                .frame(width: 520)
+                .frame(width: paneWidth)
             Divider()
             LineCell(
                 value: line.right,
                 color: rightColor,
                 sideName: RiffaLocalization.string("Right").lowercased(),
+                syntaxLanguage: rightSyntaxLanguage,
                 isBookmarked: rightBookmarked,
                 toggleBookmark: toggleRightBookmark
             )
-                .frame(width: 520)
+                .frame(width: paneWidth)
         }
         .frame(height: 25)
         .overlay(alignment: .bottom) {
@@ -2268,6 +2339,7 @@ private struct LineCell: View {
     let value: DiffLineValue?
     let color: Color
     let sideName: String
+    let syntaxLanguage: TextSyntaxLanguage?
     let isBookmarked: Bool
     let toggleBookmark: (() -> Void)?
     @Environment(\.riffaTheme) private var theme
@@ -2301,7 +2373,10 @@ private struct LineCell: View {
                 .fill(.separator.opacity(0.5))
                 .frame(width: 1)
 
-            Text(value?.line.content ?? "")
+            TextSyntaxHighlightedLine(
+                text: value?.line.content ?? "",
+                language: syntaxLanguage
+            )
                 .font(.system(size: 12.5, design: .monospaced))
                 .textSelection(.enabled)
                 .lineLimit(1)
@@ -2381,6 +2456,11 @@ private struct TextDifferenceOverviewView: View {
         let rawHeight = usableHeight * CGFloat(marker.alignedRange.count) / CGFloat(total)
         let markerHeight = min(usableHeight, max(4, rawHeight))
         let top = usableHeight * CGFloat(marker.alignedRange.start) / CGFloat(total)
+        let hitHeight = min(usableHeight, max(20, markerHeight))
+        let hitTop = min(
+            max(0, top - ((hitHeight - markerHeight) / 2)),
+            max(0, usableHeight - hitHeight)
+        )
         let selected = selectedHunkIndex.map {
             ($0 >= marker.firstHunkIndex) && ($0 <= marker.lastHunkIndex)
         } ?? false
@@ -2388,29 +2468,34 @@ private struct TextDifferenceOverviewView: View {
         return Button {
             selectHunk(marker.targetHunkIndex)
         } label: {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(markerColor(marker.kind))
-                .overlay {
-                    ZStack {
-                        if differentiateWithoutColor {
-                            Image(systemName: markerSymbol(marker.kind))
-                                .font(.system(size: 7, weight: .bold))
-                                .foregroundStyle(theme.ink)
-                                .accessibilityHidden(true)
-                        }
-                        if selected || theme.usesIncreasedContrast {
-                            RoundedRectangle(cornerRadius: 2)
-                                .stroke(
-                                    selected ? theme.ink : theme.hairlineStrong,
-                                    lineWidth: selected ? 1.5 : 1
-                                )
+            ZStack {
+                Color.clear
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(markerColor(marker.kind))
+                    .frame(height: markerHeight)
+                    .overlay {
+                        ZStack {
+                            if differentiateWithoutColor {
+                                Image(systemName: markerSymbol(marker.kind))
+                                    .font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(theme.ink)
+                                    .accessibilityHidden(true)
+                            }
+                            if selected || theme.usesIncreasedContrast {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .stroke(
+                                        selected ? theme.ink : theme.hairlineStrong,
+                                        lineWidth: selected ? 1.5 : 1
+                                    )
+                            }
                         }
                     }
-                }
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(width: 20, height: markerHeight)
-        .offset(x: 0, y: min(max(0, top), max(0, usableHeight - markerHeight)))
+        .frame(width: 20, height: hitHeight)
+        .offset(x: 0, y: hitTop)
         .help(markerAccessibilityLabel(marker))
         .accessibilityLabel(markerAccessibilityLabel(marker))
         .accessibilityHint("Activate to navigate to this difference region")
