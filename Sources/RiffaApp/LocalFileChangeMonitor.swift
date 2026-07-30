@@ -63,10 +63,12 @@ final class LocalFileChangeMonitor {
     private let url: URL
     private let debounceNanoseconds: UInt64
     private let handler: ChangeHandler
-    private let eventQueue = DispatchQueue(
-        label: "dev.riffa.local-file-change-monitor",
-        qos: .utility
-    )
+    // Dispatch source handlers are created from this @MainActor type and
+    // therefore carry main-actor isolation under Swift 6. Run the tiny event
+    // and cancellation callbacks on the matching executor; using a private
+    // queue here causes an executor precondition trap as soon as a comparison
+    // replaces or swaps an already-monitored file.
+    private let eventQueue = DispatchQueue.main
 
     private var source: (any DispatchSourceFileSystemObject)?
     private var identity: FileIdentity?
